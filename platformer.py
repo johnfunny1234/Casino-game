@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+import random
 
 import pygame
 from pygame import Rect, Surface
@@ -82,12 +83,12 @@ def load_levels():
         ],
         [
             "..............................",
-            "..C....^....C....^....C.......",
+            "..C.....C....C....C.....C.....",
             "..###..###..###..###..###.....",
-            "...............E..............",
-            "..P.....C....B..^....C...G....",
-            "#############....#############",
-            ".....#.....#.............#....",
+            ".........E........E...........",
+            "..P..B..###..^..###..B...G....",
+            "#####....###.....###....######",
+            "...#..C.......C......C...#....",
             "##############################",
         ],
         [
@@ -392,6 +393,16 @@ class Game:
         self.player = Player(self.levels[self.level_index].player_start)
         self.player_projectiles = pygame.sprite.Group()
         self.boss_projectiles = pygame.sprite.Group()
+        self.trail = []
+        self.stars = [
+            {
+                "pos": Vector2(random.randint(0, WIDTH), random.randint(0, HEIGHT)),
+                "radius": random.randint(1, 3),
+                "speed": random.uniform(0.15, 0.6),
+                "twinkle": random.uniform(0.5, 1.0),
+            }
+            for _ in range(80)
+        ]
         self.boss_music_path = self.find_boss_music()
         self.reset_level_state()
 
@@ -429,6 +440,14 @@ class Game:
 
     def draw_background(self):
         draw_gradient_rect(self.screen, (15, 18, 45), (35, 45, 80), Rect(0, 0, WIDTH, HEIGHT))
+        for star in self.stars:
+            star["pos"].x -= star["speed"]
+            if star["pos"].x < 0:
+                star["pos"].x = WIDTH
+                star["pos"].y = random.randint(0, HEIGHT)
+            twinkle = 150 + int(80 * abs(pygame.time.get_ticks() % 1200 - 600) / 600)
+            color = (twinkle, twinkle, 255)
+            pygame.draw.circle(self.screen, color, (int(star["pos"].x), int(star["pos"].y)), star["radius"])
         parallax_color = (60, 80, 130)
         for i in range(6):
             pygame.draw.polygon(
@@ -461,6 +480,13 @@ class Game:
 
         self.player_projectiles.update()
         self.boss_projectiles.update()
+
+        speed = abs(self.player.velocity.x) + abs(self.player.velocity.y)
+        if speed > 2:
+            self.trail.append({"pos": self.player.rect.center, "life": 18})
+        for particle in self.trail:
+            particle["life"] -= 1
+        self.trail = [p for p in self.trail if p["life"] > 0]
 
         # Collectibles
         collected = pygame.sprite.spritecollide(self.player, level.collectibles, dokill=True)
@@ -536,6 +562,14 @@ class Game:
         level.goal.draw(self.screen)
         level.enemies.draw(self.screen)
         level.boosters.draw(self.screen)
+        for particle in self.trail:
+            alpha = max(40, particle["life"] * 7)
+            radius = max(4, particle["life"] // 2)
+            glow = Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(glow, (120, 180, 255, alpha), (radius, radius), radius)
+            pygame.draw.circle(glow, (255, 255, 255, alpha), (radius, radius), radius // 2)
+            pos = (particle["pos"][0] - radius, particle["pos"][1] - radius)
+            self.screen.blit(glow, pos)
         self.player_projectiles.draw(self.screen)
         self.boss_projectiles.draw(self.screen)
         if level.boss:
