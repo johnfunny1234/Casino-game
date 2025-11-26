@@ -376,7 +376,13 @@ class Level:
 
 class Game:
     def __init__(self):
+        self.audio_enabled = False
         pygame.init()
+        try:
+            pygame.mixer.init()
+            self.audio_enabled = True
+        except pygame.error:
+            self.audio_enabled = False
         pygame.display.set_caption("Python Platformer - 10 Levels")
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
@@ -392,6 +398,9 @@ class Game:
 
     def find_boss_music(self):
         base = Path(__file__).parent
+        preferred = base / "FFVII_Battle_ThemeV2.mp3"
+        if preferred.exists():
+            return str(preferred)
         for ext in (".ogg", ".mp3", ".wav"):
             for candidate in base.glob(f"*boss*{ext}"):
                 return str(candidate)
