@@ -377,11 +377,6 @@ class Level:
 class Game:
     def __init__(self):
         pygame.init()
-        self.audio_enabled = True
-        try:
-            pygame.mixer.init()
-        except pygame.error:
-            self.audio_enabled = False
         pygame.display.set_caption("Python Platformer - 10 Levels")
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
