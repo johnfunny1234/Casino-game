@@ -320,6 +320,44 @@ class HoverEnemy(pygame.sprite.Sprite):
                 sound_callback(sound)
             self.shoot_cooldown = 110
 
+class GroundShooter(pygame.sprite.Sprite):
+    def __init__(self, pos):
+        super().__init__()
+        self.image = Surface((TILE * 0.9, TILE * 0.9), pygame.SRCALPHA)
+        body_rect = self.image.get_rect()
+        pygame.draw.rect(self.image, (255, 140, 120), body_rect, border_radius=8)
+        pygame.draw.rect(self.image, (60, 40, 70), body_rect.inflate(-8, -8), border_radius=8)
+        pygame.draw.circle(self.image, (255, 220, 220), (body_rect.width // 2, body_rect.height // 3), 8)
+        self.rect = self.image.get_rect(topleft=pos)
+        self.direction = random.choice([-1, 1])
+        self.speed = 2.4
+        self.shoot_cooldown = random.randint(50, 90)
+
+    def update(self, tiles, hazard_projectiles: pygame.sprite.Group, sound_callback=None, sound=None, player=None):
+        self.rect.x += self.speed * self.direction
+        for tile in tiles:
+            if self.rect.colliderect(tile.rect):
+                if self.direction > 0:
+                    self.rect.right = tile.rect.left
+                else:
+                    self.rect.left = tile.rect.right
+                self.direction *= -1
+                break
+
+        foot_x = self.rect.left if self.direction < 0 else self.rect.right
+        foot_probe = Rect(foot_x - 4, self.rect.bottom, 8, 8)
+        if not any(tile.rect.colliderect(foot_probe) for tile in tiles):
+            self.direction *= -1
+
+        if player:
+            self.shoot_cooldown -= 1
+            if self.shoot_cooldown <= 0:
+                direction = Vector2(player.rect.center) - Vector2(self.rect.center)
+                hazard_projectiles.add(Projectile(self.rect.center, direction, color=(255, 180, 100), speed=8, radius=9))
+                if sound_callback:
+                    sound_callback(sound)
+                self.shoot_cooldown = 120
+
 class Projectile(pygame.sprite.Sprite):
     def __init__(self, pos, direction, color=(230, 60, 60), speed=PROJECTILE_SPEED, radius=10):
         super().__init__()
@@ -338,21 +376,32 @@ class Projectile(pygame.sprite.Sprite):
 class Boss(pygame.sprite.Sprite):
     def __init__(self, pos):
         super().__init__()
-        self.image = Surface((TILE * 1.6, TILE * 1.6), pygame.SRCALPHA)
-        pygame.draw.rect(self.image, (70, 30, 120), self.image.get_rect(), border_radius=18)
-        pygame.draw.rect(self.image, (210, 140, 255), self.image.get_rect(), 6, border_radius=18)
-        pygame.draw.circle(self.image, (255, 110, 150), (int(self.image.get_width() * 0.25), int(self.image.get_height() * 0.3)), 12)
-        pygame.draw.circle(self.image, (255, 110, 150), (int(self.image.get_width() * 0.75), int(self.image.get_height() * 0.3)), 12)
-        pygame.draw.rect(self.image, (255, 240, 255), Rect(10, self.image.get_height() // 2, self.image.get_width() - 20, 14), border_radius=10)
-        pygame.draw.circle(self.image, (90, 210, 255), (self.image.get_width() // 2, int(self.image.get_height() * 0.7)), 10)
+        self.base_color = (70, 30, 120)
+        self.eye_color = (255, 110, 150)
+        self.image = self.render_boss_image()
         self.rect = self.image.get_rect(topleft=pos)
         self.velocity = Vector2(0, 0)
         self.on_ground = False
-        self.health = 18
+        self.health = 38
         self.jump_cooldown = 110
-        self.shot_cooldown = 70
+        self.shot_cooldown = 60
         self.dash_cooldown = 220
-        self.volley_cooldown = 180
+        self.volley_cooldown = 150
+        self.beam_cooldown = 200
+        self.rain_cooldown = 140
+        self.pulse_cooldown = 260
+        self.dying = False
+
+    def render_boss_image(self, dark_eye=False):
+        image = Surface((TILE * 1.6, TILE * 1.6), pygame.SRCALPHA)
+        pygame.draw.rect(image, self.base_color, image.get_rect(), border_radius=18)
+        pygame.draw.rect(image, (210, 140, 255), image.get_rect(), 6, border_radius=18)
+        right_eye_color = (20, 20, 30) if dark_eye else self.eye_color
+        pygame.draw.circle(image, self.eye_color, (int(image.get_width() * 0.25), int(image.get_height() * 0.3)), 12)
+        pygame.draw.circle(image, right_eye_color, (int(image.get_width() * 0.75), int(image.get_height() * 0.3)), 12)
+        pygame.draw.rect(image, (255, 240, 255), Rect(10, image.get_height() // 2, image.get_width() - 20, 14), border_radius=10)
+        pygame.draw.circle(image, (90, 210, 255), (image.get_width() // 2, int(image.get_height() * 0.7)), 10)
+        return image
 
     def apply_gravity(self):
         self.velocity.y += GRAVITY
@@ -379,30 +428,57 @@ class Boss(pygame.sprite.Sprite):
                     self.rect.top = tile.rect.bottom
                     self.velocity.y = 0
 
+    def start_death(self):
+        self.dying = True
+        self.image = self.render_boss_image(dark_eye=True)
+
     def update(self, tiles, player, hazard_projectiles: pygame.sprite.Group, volley_sound=None, sound_callback=None):
+        if self.dying:
+            return
         self.apply_gravity()
         self.velocity.x = 0
         self.jump_cooldown -= 1
         self.shot_cooldown -= 1
         self.dash_cooldown -= 1
         self.volley_cooldown -= 1
+        self.beam_cooldown -= 1
+        self.rain_cooldown -= 1
+        self.pulse_cooldown -= 1
 
         if self.shot_cooldown <= 0:
             direction = Vector2(player.rect.center) - Vector2(self.rect.center)
-            hazard_projectiles.add(Projectile(self.rect.center, direction, color=(255, 120, 255), speed=9, radius=12))
-            self.shot_cooldown = 95
+            hazard_projectiles.add(Projectile(self.rect.center, direction, color=(255, 120, 255), speed=10, radius=12))
+            self.shot_cooldown = 70
+
+        if self.beam_cooldown <= 0:
+            hazard_projectiles.add(Projectile(self.rect.midleft, Vector2(-1, 0), color=(255, 200, 120), speed=12, radius=10))
+            hazard_projectiles.add(Projectile(self.rect.midright, Vector2(1, 0), color=(255, 200, 120), speed=12, radius=10))
+            hazard_projectiles.add(Projectile(self.rect.center, Vector2(0, -1), color=(255, 200, 120), speed=12, radius=10))
+            self.beam_cooldown = 240
+
+        if self.rain_cooldown <= 0:
+            for _ in range(5):
+                drop_x = random.randint(80, WIDTH - 80)
+                hazard_projectiles.add(Projectile((drop_x, 0), Vector2(0, 1), color=(255, 160, 60), speed=7, radius=9))
+            self.rain_cooldown = 180
 
         if self.volley_cooldown <= 0:
-            angles = [i for i in range(0, 360, 45)]
+            angles = [i for i in range(0, 360, 30)]
             center = Vector2(self.rect.center)
             for angle in angles:
                 rad = math.radians(angle)
                 hazard_projectiles.add(
-                    Projectile(center, Vector2(math.cos(rad), math.sin(rad)), color=(120, 255, 220), speed=6, radius=9)
+                    Projectile(center, Vector2(math.cos(rad), math.sin(rad)), color=(120, 255, 220), speed=7, radius=9)
                 )
-            self.volley_cooldown = 260
+            self.volley_cooldown = 220
             if sound_callback:
                 sound_callback(volley_sound)
+
+        if self.pulse_cooldown <= 0:
+            offsets = [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
+            for direction in offsets:
+                hazard_projectiles.add(Projectile(self.rect.center, direction, color=(255, 90, 200), speed=14, radius=11))
+            self.pulse_cooldown = 300
 
         self.move_and_collide(tiles)
 
@@ -558,6 +634,7 @@ class Game:
         self.shoot_sound = None
         self.enemy_shoot_sound = None
         self.boss_volley_sound = None
+        self.scream_sound = None
         self.pickup_sound = None
         if self.audio_enabled:
             self.build_sounds()
@@ -567,6 +644,7 @@ class Game:
         self.player = Player(self.levels[self.level_index].player_start)
         self.player_projectiles = pygame.sprite.Group()
         self.hazard_projectiles = pygame.sprite.Group()
+        self.wave_enemies = pygame.sprite.Group()
         self.trail = []
         self.state = "menu"
         self.selected_level = 0
@@ -581,6 +659,7 @@ class Game:
             for _ in range(80)
         ]
         self.boss_music_path = self.find_boss_music()
+        self.celebration_music_path = self.find_celebration_music()
         self.reset_level_state()
 
     def build_sounds(self):
@@ -597,6 +676,7 @@ class Game:
         self.shoot_sound = tone(520, 120, 0.28)
         self.enemy_shoot_sound = tone(300, 140, 0.22)
         self.boss_volley_sound = tone(140, 200, 0.35)
+        self.scream_sound = tone(220, 420, 0.45)
         self.pickup_sound = tone(760, 120, 0.3)
 
     def play_sound(self, sound):
@@ -616,6 +696,16 @@ class Game:
                 return str(candidate)
         return None
 
+    def find_celebration_music(self):
+        base = Path(__file__).parent
+        preferred = base / "What we Do Here is Go Back - Otis McDonald.mp3"
+        if preferred.exists():
+            return str(preferred)
+        for ext in (".ogg", ".mp3", ".wav"):
+            for candidate in base.glob(f"*celebration*{ext}"):
+                return str(candidate)
+        return None
+
     def reset_level_state(self):
         level = self.levels[self.level_index]
         self.player.rect.topleft = level.player_start
@@ -623,6 +713,16 @@ class Game:
         self.player.collected = 0
         self.player_projectiles.empty()
         self.hazard_projectiles.empty()
+        self.wave_enemies.empty()
+        self.boss_defeated = False
+        self.boss_exit_timer = 0
+        self.fire_mode = False
+        self.player_dancing = False
+        self.celebration_timer = 0
+        self.wave_spawned = False
+        self.epilogue_ready = False
+        self.allow_exit = self.level_index < len(self.levels) - 1
+        self.celebration_music_started = False
         # Deep copy collectibles to allow replaying levels
         layout_copy = load_levels()[self.level_index]
         self.levels[self.level_index] = Level(layout_copy)
@@ -640,27 +740,37 @@ class Game:
         self.transitioning = False
 
     def draw_background(self):
-        draw_gradient_rect(self.screen, (15, 18, 45), (35, 45, 80), Rect(0, 0, WIDTH, HEIGHT))
-        for star in self.stars:
-            star["pos"].x -= star["speed"]
-            if star["pos"].x < 0:
-                star["pos"].x = WIDTH
-                star["pos"].y = random.randint(0, HEIGHT)
-            twinkle = 150 + int(80 * abs(pygame.time.get_ticks() % 1200 - 600) / 600)
-            color = (twinkle, twinkle, 255)
-            pygame.draw.circle(self.screen, color, (int(star["pos"].x), int(star["pos"].y)), star["radius"])
-        parallax_color = (60, 80, 130)
-        for i in range(6):
-            pygame.draw.polygon(
-                self.screen,
-                (parallax_color[0], parallax_color[1], parallax_color[2] + i * 4),
-                [
-                    (i * 180 - 120, HEIGHT - 200 + i * 10),
-                    (i * 180 + 80, HEIGHT - 260 + i * 8),
-                    (i * 180 + 200, HEIGHT - 200 + i * 10),
-                ],
-                0,
-            )
+        if self.fire_mode:
+            draw_gradient_rect(self.screen, (90, 20, 10), (180, 60, 20), Rect(0, 0, WIDTH, HEIGHT))
+            for _ in range(10):
+                flicker_x = random.randint(0, WIDTH)
+                flicker_y = random.randint(0, HEIGHT // 2)
+                size = random.randint(40, 120)
+                flame = Surface((size, size), pygame.SRCALPHA)
+                pygame.draw.circle(flame, (255, 140, 60, 80), (size // 2, size // 2), size // 2)
+                self.screen.blit(flame, (flicker_x, flicker_y))
+        else:
+            draw_gradient_rect(self.screen, (15, 18, 45), (35, 45, 80), Rect(0, 0, WIDTH, HEIGHT))
+            for star in self.stars:
+                star["pos"].x -= star["speed"]
+                if star["pos"].x < 0:
+                    star["pos"].x = WIDTH
+                    star["pos"].y = random.randint(0, HEIGHT)
+                twinkle = 150 + int(80 * abs(pygame.time.get_ticks() % 1200 - 600) / 600)
+                color = (twinkle, twinkle, 255)
+                pygame.draw.circle(self.screen, color, (int(star["pos"].x), int(star["pos"].y)), star["radius"])
+            parallax_color = (60, 80, 130)
+            for i in range(6):
+                pygame.draw.polygon(
+                    self.screen,
+                    (parallax_color[0], parallax_color[1], parallax_color[2] + i * 4),
+                    [
+                        (i * 180 - 120, HEIGHT - 200 + i * 10),
+                        (i * 180 + 80, HEIGHT - 260 + i * 8),
+                        (i * 180 + 200, HEIGHT - 200 + i * 10),
+                    ],
+                    0,
+                )
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -672,12 +782,68 @@ class Game:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.state = "menu"
 
+    def trigger_finale(self, level):
+        self.boss_defeated = True
+        self.boss_exit_timer = 0
+        self.allow_exit = False
+        if level.boss:
+            level.boss.start_death()
+        self.play_sound(self.scream_sound)
+        self.hazard_projectiles.empty()
+        if self.audio_enabled:
+            pygame.mixer.music.stop()
+
+    def start_celebration_music(self):
+        if self.audio_enabled and self.celebration_music_path and not self.celebration_music_started:
+            try:
+                pygame.mixer.music.load(self.celebration_music_path)
+                pygame.mixer.music.play(-1)
+                self.celebration_music_started = True
+            except pygame.error:
+                pass
+
+    def stop_music(self):
+        if self.audio_enabled:
+            try:
+                pygame.mixer.music.stop()
+            except pygame.error:
+                pass
+
+    def spawn_wave_enemies(self, level):
+        floor_top = min(tile.rect.top for tile in level.tiles) if level.tiles else HEIGHT - TILE * 2
+        base_y = floor_top - int(TILE * 0.9)
+        positions = [120, 260, 420, 580, 740]
+        for x in positions:
+            self.wave_enemies.add(GroundShooter((x, base_y)))
+
+    def handle_finale_sequence(self, level):
+        self.boss_exit_timer += 1
+        if self.boss_exit_timer == 90:
+            if level.boss:
+                level.boss.kill()
+                level.boss = None
+            self.fire_mode = True
+        if self.boss_exit_timer >= 90:
+            self.player_dancing = self.celebration_timer < 3600 and not self.wave_spawned
+            self.start_celebration_music()
+            self.celebration_timer += 1
+            if self.celebration_timer >= 3600 and not self.wave_spawned:
+                self.wave_spawned = True
+                self.player_dancing = False
+                self.stop_music()
+                self.spawn_wave_enemies(level)
+
+        if self.wave_spawned and not self.epilogue_ready and len(self.wave_enemies) == 0:
+            self.epilogue_ready = True
+            self.allow_exit = True
+
     def update_player_state(self, level):
         level.moving_platforms.update()
         level.lasers.update()
         collision_tiles = list(level.tiles) + list(level.moving_platforms)
         level.enemies.update(collision_tiles)
         level.hover_enemies.update(collision_tiles, self.hazard_projectiles, self.play_sound, self.enemy_shoot_sound)
+        self.wave_enemies.update(collision_tiles, self.hazard_projectiles, self.play_sound, self.enemy_shoot_sound, self.player)
         player_projectile = self.player.update(collision_tiles)
         if player_projectile:
             self.player_projectiles.add(player_projectile)
@@ -715,6 +881,7 @@ class Game:
             pygame.sprite.spritecollideany(self.player, level.spikes)
             or pygame.sprite.spritecollideany(self.player, level.enemies)
             or pygame.sprite.spritecollideany(self.player, level.hover_enemies)
+            or pygame.sprite.spritecollideany(self.player, self.wave_enemies)
             or pygame.sprite.spritecollideany(self.player, self.hazard_projectiles)
             or laser_hit
         )
@@ -735,12 +902,19 @@ class Game:
                 level.boss.take_hit()
                 self.play_sound(self.enemy_shoot_sound)
             if level.boss.health <= 0:
-                self.advance_level()
+                if self.level_index == len(self.levels) - 1:
+                    self.trigger_finale(level)
+                else:
+                    self.advance_level()
                 return
+
+        if self.boss_defeated:
+            self.handle_finale_sequence(level)
 
         # Player shots damage enemies
         pygame.sprite.groupcollide(self.player_projectiles, level.enemies, True, True)
         pygame.sprite.groupcollide(self.player_projectiles, level.hover_enemies, True, True)
+        pygame.sprite.groupcollide(self.player_projectiles, self.wave_enemies, True, True)
 
         # Goal (inactive while boss lives)
         if level.boss and level.boss.health > 0:
@@ -756,7 +930,7 @@ class Game:
             if goal_sprite and goal_sprite.rect.inflate(12, 12).colliderect(self.player.rect):
                 reached_exit = True
 
-        if reached_exit:
+        if reached_exit and self.allow_exit:
             self.advance_level()
 
     def advance_level(self):
@@ -799,6 +973,7 @@ class Game:
         level.hover_enemies.draw(self.screen)
         level.boosters.draw(self.screen)
         level.lasers.draw(self.screen)
+        self.wave_enemies.draw(self.screen)
         for particle in self.trail:
             alpha = max(40, particle["life"] * 7)
             radius = max(4, particle["life"] // 2)
@@ -811,6 +986,21 @@ class Game:
         self.hazard_projectiles.draw(self.screen)
         if level.boss:
             self.screen.blit(level.boss.image, level.boss.rect)
+        if self.fire_mode:
+            flame = Surface((WIDTH, TILE * 2), pygame.SRCALPHA)
+            for i in range(10):
+                start_x = i * 120 + random.randint(-20, 20)
+                flame_height = random.randint(60, 140)
+                pygame.draw.polygon(
+                    flame,
+                    (255, 120, 60, 120),
+                    [
+                        (start_x, TILE * 2),
+                        (start_x + 80, TILE * 2),
+                        (start_x + 40, TILE * 2 - flame_height),
+                    ],
+                )
+            self.screen.blit(flame, (0, HEIGHT - TILE * 2))
         if self.player.shield_time > 0 or self.player.invuln_timer > 0:
             aura_size = TILE * 1.4
             aura = Surface((aura_size, aura_size), pygame.SRCALPHA)
@@ -818,7 +1008,13 @@ class Game:
             pygame.draw.circle(aura, (120, 220, 255, alpha), (aura_size // 2, aura_size // 2), aura_size // 2)
             rect = aura.get_rect(center=self.player.rect.center)
             self.screen.blit(aura, rect)
-        self.screen.blit(self.player.image, self.player.rect)
+        if self.player_dancing:
+            angle = math.sin(pygame.time.get_ticks() / 180) * 14
+            rotated = pygame.transform.rotate(self.player.image, angle)
+            rect = rotated.get_rect(center=self.player.rect.center)
+            self.screen.blit(rotated, rect)
+        else:
+            self.screen.blit(self.player.image, self.player.rect)
 
     def draw_hud(self, level):
         info = f"Level {self.level_index + 1}/10 | Gems: {self.player.collected}" \
@@ -838,6 +1034,15 @@ class Game:
         if level.boss:
             health_text = self.font.render(f"Boss HP: {level.boss.health}", True, (255, 160, 200))
             self.screen.blit(health_text, (WIDTH - 220, 20))
+        if self.player_dancing:
+            dance_text = self.font.render("Celebration: dancing!", True, (255, 210, 120))
+            self.screen.blit(dance_text, (WIDTH - 260, 50))
+        if self.wave_spawned and not self.epilogue_ready:
+            wave_text = self.font.render("Defeat the encore attackers!", True, (255, 200, 200))
+            self.screen.blit(wave_text, (WIDTH - 330, 80))
+        if self.epilogue_ready:
+            soon = self.font.render("Walk right: Level 11 / Chapter 2 coming soon", True, (200, 255, 200))
+            self.screen.blit(soon, (WIDTH // 2 - soon.get_width() // 2, HEIGHT - 40))
 
     def run(self):
         while True:
