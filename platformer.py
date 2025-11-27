@@ -391,6 +391,7 @@ class Boss(pygame.sprite.Sprite):
         self.rain_cooldown = 140
         self.pulse_cooldown = 260
         self.dying = False
+        self.exit_velocity = Vector2(0, -8)
 
     def render_boss_image(self, dark_eye=False):
         image = Surface((TILE * 1.6, TILE * 1.6), pygame.SRCALPHA)
@@ -431,9 +432,13 @@ class Boss(pygame.sprite.Sprite):
     def start_death(self):
         self.dying = True
         self.image = self.render_boss_image(dark_eye=True)
+        self.exit_velocity = Vector2(6, -12)
 
     def update(self, tiles, player, hazard_projectiles: pygame.sprite.Group, volley_sound=None, sound_callback=None):
         if self.dying:
+            self.rect.x += int(self.exit_velocity.x)
+            self.rect.y += int(self.exit_velocity.y)
+            self.exit_velocity.y -= 0.4
             return
         self.apply_gravity()
         self.velocity.x = 0
@@ -678,8 +683,6 @@ class Game:
         self.shoot_sound = None
         self.enemy_shoot_sound = None
         self.boss_volley_sound = None
-        self.scream_sound = None
-        self.scream_duration_ms = 3000
         self.pickup_sound = None
         if self.audio_enabled:
             self.build_sounds()
@@ -695,9 +698,6 @@ class Game:
         self.state = "menu"
         self.selected_level = 0
         self.transitioning = False
-        self.scream_played = False
-        self.scream_channel = None
-        self.scream_started_at = None
         self.stars = [
             {
                 "pos": Vector2(random.randint(0, WIDTH), random.randint(0, HEIGHT)),
@@ -725,7 +725,6 @@ class Game:
         self.shoot_sound = tone(520, 120, 0.28)
         self.enemy_shoot_sound = tone(300, 140, 0.22)
         self.boss_volley_sound = tone(140, 200, 0.35)
-        self.scream_sound = tone(220, 420, 0.45)
         self.pickup_sound = tone(760, 120, 0.3)
 
     def play_sound(self, sound):
@@ -780,7 +779,6 @@ class Game:
         self.epilogue_ready = False
         self.allow_exit = self.level_index < len(self.levels) - 1
         self.celebration_music_started = False
-        self.scream_played = False
         # Deep copy collectibles to allow replaying levels
         layout_copy = load_levels()[self.level_index]
         self.levels[self.level_index] = Level(layout_copy)
@@ -796,13 +794,6 @@ class Game:
             else:
                 pygame.mixer.music.stop()
         self.transitioning = False
-        if self.scream_channel:
-            try:
-                self.scream_channel.stop()
-            except pygame.error:
-                pass
-        self.scream_channel = None
-        self.scream_started_at = None
 
     def draw_background(self):
         if self.fire_mode:
@@ -847,35 +838,12 @@ class Game:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.state = "menu"
 
-    def start_scream(self):
-        if not (self.audio_enabled and self.scream_sound):
-            return
-        try:
-            self.scream_channel = self.scream_sound.play(maxtime=self.scream_duration_ms)
-            self.scream_started_at = pygame.time.get_ticks()
-        except pygame.error:
-            self.scream_channel = None
-            self.scream_started_at = None
-
-    def stop_scream_if_elapsed(self, duration_ms=None):
-        duration_ms = self.scream_duration_ms if duration_ms is None else duration_ms
-        if self.scream_channel and self.scream_started_at is not None:
-            if pygame.time.get_ticks() - self.scream_started_at >= duration_ms:
-                try:
-                    self.scream_channel.stop()
-                except pygame.error:
-                    pass
-                self.scream_channel = None
-                self.scream_started_at = None
-
     def trigger_finale(self, level):
         self.boss_defeated = True
         self.boss_exit_timer = 0
         self.allow_exit = False
         if level.boss:
             level.boss.start_death()
-        self.start_scream()
-        self.scream_played = True
         self.hazard_projectiles.empty()
         if self.audio_enabled:
             pygame.mixer.music.stop()
@@ -904,10 +872,6 @@ class Game:
             self.wave_enemies.add(GroundShooter((x, base_y)))
 
     def handle_finale_sequence(self, level):
-        if not self.scream_played:
-            self.start_scream()
-            self.scream_played = True
-        self.stop_scream_if_elapsed()
         self.boss_exit_timer += 1
         if self.boss_exit_timer == 90:
             if level.boss:
@@ -1173,7 +1137,6 @@ class Game:
     def run(self):
         while True:
             self.clock.tick(FPS)
-            self.stop_scream_if_elapsed()
             if self.state == "menu":
                 self.handle_menu_events()
                 self.draw_background()
