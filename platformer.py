@@ -515,9 +515,14 @@ class Player(pygame.sprite.Sprite):
         self.shielding = False
         self.invuln_timer = 0
         self.god_mode = god_mode
+        self.auto_walk_right = False
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
+        if self.auto_walk_right:
+            self.velocity.x = PLAYER_SPEED * 0.6
+            self.facing = 1
+            return None
         self.velocity.x = 0
         if keys[pygame.K_LEFT] or keys[pygame.K_a]:
             self.velocity.x = -PLAYER_SPEED
@@ -767,6 +772,7 @@ class Game:
         self.player.shield_break_timer = 0
         self.player.shield_regen_delay = 0
         self.player.shielding = False
+        self.player.auto_walk_right = False
         self.player_projectiles.empty()
         self.hazard_projectiles.empty()
         self.wave_enemies.empty()
@@ -891,6 +897,7 @@ class Game:
         if self.wave_spawned and not self.epilogue_ready and len(self.wave_enemies) == 0:
             self.epilogue_ready = True
             self.allow_exit = True
+            self.player.auto_walk_right = True
 
     def update_player_state(self, level):
         level.moving_platforms.update()
