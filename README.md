@@ -34,6 +34,7 @@ python platformer.py
 - Generous **green teleporter overlays** on goals and pads (`T`) with broader detection to keep progression snappy and avoid getting stuck after beating sections.
 - **Shield pickups** (`S`) that refill and supercharge your **F-key shield**, which regenerates after breaking if it takes too much fire.
 - An **owner/testing menu** that exposes a **God Mode** toggle (invulnerable runs) outside normal play so you can debug the levels or boss.
+- A **5-segment health bar** for the player: every two unshielded hits remove one bar (ten total hits), making difficulty clearer without removing challenge.
 - 10 tuned levels with boosters, spikes, patrolling walkers (now edge-aware), hovering shooters, moving platforms, timed laser barriers, and collectibles, all balanced for fair paths.
 - Custom in-engine sound effects for firing, enemy volleys, and pickups—no external SFX needed.
 - A flat Level 10 arena with a stationary boss that now fires beams, volleys, flame rain, and bursts of projectiles with beefed-up health while optionally playing `FFVII_Battle_ThemeV2.mp3` (any `*boss*.ogg|.mp3|.wav` file is also detected).

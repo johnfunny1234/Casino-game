@@ -499,6 +499,9 @@ class Player(pygame.sprite.Sprite):
         self.collected = 0
         self.facing = 1
         self.shoot_cooldown = 0
+        self.max_health_bars = 5
+        self.health_bars = self.max_health_bars
+        self.damage_buffer = 0
         self.shield_time = 0
         self.shield_energy_max = 140
         self.shield_energy = self.shield_energy_max
@@ -598,6 +601,16 @@ class Player(pygame.sprite.Sprite):
             self.shield_energy = min(self.shield_energy_max, self.shield_energy + regen_rate)
         return projectile
 
+    def register_hit(self):
+        if self.god_mode:
+            return True
+        self.invuln_timer = max(self.invuln_timer, 30)
+        self.damage_buffer += 1
+        if self.damage_buffer >= 2:
+            self.health_bars -= 1
+            self.damage_buffer = 0
+        return self.health_bars > 0
+
 class Level:
     def __init__(self, layout):
         self.tiles = pygame.sprite.Group()
@@ -681,6 +694,7 @@ class Game:
         self.state = "menu"
         self.selected_level = 0
         self.transitioning = False
+        self.scream_played = False
         self.stars = [
             {
                 "pos": Vector2(random.randint(0, WIDTH), random.randint(0, HEIGHT)),
@@ -744,6 +758,8 @@ class Game:
         self.player.velocity = Vector2(0, 0)
         self.player.collected = 0
         self.player.god_mode = self.god_mode
+        self.player.health_bars = self.player.max_health_bars
+        self.player.damage_buffer = 0
         self.player.shield_time = 0
         self.player.shield_energy = self.player.shield_energy_max
         self.player.shield_break_timer = 0
@@ -761,6 +777,7 @@ class Game:
         self.epilogue_ready = False
         self.allow_exit = self.level_index < len(self.levels) - 1
         self.celebration_music_started = False
+        self.scream_played = False
         # Deep copy collectibles to allow replaying levels
         layout_copy = load_levels()[self.level_index]
         self.levels[self.level_index] = Level(layout_copy)
@@ -827,6 +844,7 @@ class Game:
         if level.boss:
             level.boss.start_death()
         self.play_sound(self.scream_sound)
+        self.scream_played = True
         self.hazard_projectiles.empty()
         if self.audio_enabled:
             pygame.mixer.music.stop()
@@ -855,6 +873,9 @@ class Game:
             self.wave_enemies.add(GroundShooter((x, base_y)))
 
     def handle_finale_sequence(self, level):
+        if not self.scream_played:
+            self.play_sound(self.scream_sound)
+            self.scream_played = True
         self.boss_exit_timer += 1
         if self.boss_exit_timer == 90:
             if level.boss:
@@ -931,14 +952,18 @@ class Game:
         if hurtful:
             if self.player.absorb_hit():
                 return
-            self.reset_level_state()
+            alive = self.player.register_hit()
+            if not alive:
+                self.reset_level_state()
             return
 
         # Boss logic
         if level.boss:
             level.boss.update(collision_tiles, self.player, self.hazard_projectiles, self.boss_volley_sound, self.play_sound)
             if pygame.sprite.collide_rect(self.player, level.boss) and not self.god_mode:
-                self.reset_level_state()
+                alive = self.player.register_hit()
+                if not alive:
+                    self.reset_level_state()
                 return
             boss_hits = pygame.sprite.spritecollide(level.boss, self.player_projectiles, dokill=True)
             if boss_hits:
@@ -1081,6 +1106,21 @@ class Game:
             shield_label = "Shield recovering"
         shield_text = self.font.render(f"{shield_label} (F)", True, (200, 230, 255))
         self.screen.blit(shield_text, (20, 60))
+
+        health_text = self.font.render("Health", True, (255, 210, 210))
+        self.screen.blit(health_text, (20, 102))
+        for i in range(self.player.max_health_bars):
+            bar_rect = pygame.Rect(20 + i * 46, 122, 40, 14)
+            pygame.draw.rect(self.screen, (70, 40, 40), bar_rect, border_radius=4)
+            fill_ratio = 0
+            if i < self.player.health_bars:
+                fill_ratio = 1
+            elif i == self.player.health_bars and self.player.damage_buffer > 0:
+                fill_ratio = 0.5
+            if fill_ratio > 0:
+                fill_rect = pygame.Rect(bar_rect.x, bar_rect.y, int(bar_rect.width * fill_ratio), bar_rect.height)
+                pygame.draw.rect(self.screen, (220, 100, 100), fill_rect, border_radius=4)
+            pygame.draw.rect(self.screen, (255, 200, 200), bar_rect, 2, border_radius=4)
 
         if level.boss:
             health_text = self.font.render(f"Boss HP: {level.boss.health}", True, (255, 160, 200))
