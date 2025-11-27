@@ -19,11 +19,17 @@ Run the platformer directly:
 python platformer.py
 ```
 
-### Controls
+### Controls & menus
 - Move: **A/D** or **Left/Right arrows**
 - Jump: **W**, **Space**, or **Up arrow**
 - Shoot firebolt: **E** (red projectile)
 - Reset current level: **R**
-- Quit: **ESC** or window close
+- Open main menu from gameplay: **ESC** (quit from the menu with **ESC**)
+- Level select: press **L** on the main menu or use number keys **1-0** inside the selector, then **Enter/Space** to load
 
-Reach the green goal block in each stage while avoiding spikes and patrolling enemies, collecting as many gems as you can along the way. Goals now include a green teleporter layer (and standalone green teleport pads marked `T`) that advance you to the next stage when touched, so you have a clear, generous hitbox for progressing after tougher sections. There are 10 levels to clear, plus jump-boost pads, drifting moving platforms, timed laser barriers, and new hovering shooters to keep encounters varied. Level 10 features a boss with unique abilities and accompanying boss-battle music; a file named `FFVII_Battle_ThemeV2.mp3` in the game directory will be used automatically, and otherwise any track matching `*boss*.ogg|.mp3|.wav` will be detected if available. Levels have been tuned for fairness (including a friendlier Level 7, rebuilt Level 8, and a softened Level 9), with stronger default jumps and a starfield skybox plus movement trails to make runs feel extra flashy.
+### What’s in the game
+- A **main menu** with a **level selector** (all 10 levels unlocked) so you can jump straight into any stage.
+- Generous **green teleporter overlays** on goals and pads (`T`) with broader detection to keep progression snappy and avoid getting stuck after beating sections.
+- **Shield pickups** (`S`) that grant a temporary protective bubble and brief invulnerability on hit, visible as a blue aura.
+- 10 tuned levels with boosters, spikes, patrolling walkers, hovering shooters, moving platforms, timed laser barriers, and collectibles, all balanced for fair paths.
+- Level 10 boss with unique attacks and optional music: a file named `FFVII_Battle_ThemeV2.mp3` in the game directory is preferred (any `*boss*.ogg|.mp3|.wav` will also be detected).

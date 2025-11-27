@@ -21,12 +21,12 @@ def load_levels():
     return [
         [
             "..............................",
-            "...C...............C.......C..",
+            "...C...............C.....S.C..",
             "...###.......###.......###....",
             "..P....................B......",
             "#####...........C........G....",
             "....#....###..........###.....",
-            "....#.........................",
+            "....#........S................",
             "...^######....###.......###...",
             "##############################",
         ],
@@ -34,27 +34,27 @@ def load_levels():
             "..............................",
             "..C.....C......C..............",
             "..###...###....###....###.....",
-            ".....M.............L..........",
+            ".....M.............L.........S",
             "..P....B....E.............G...",
             "#####...........###....#######",
             "....#....^.............#......",
-            "..M.#.........C........#......",
+            "..M.#.........C....S...#......",
             "##############################",
         ],
         [
             "..............................",
             "...C....H....C....H....C......",
             "..###..###..###..###..###.....",
-            "...........^.......^..........",
+            "...........^.......^.....S....",
             "..P...B....C....E....C....G...",
             "#####...........#####....#####",
             "....#....M.............#......",
-            "....#........C...........#....",
+            "....#........C..S........#....",
             "##############################",
         ],
         [
             "..............................",
-            "..C....E.......C.......E......",
+            "..C....E.......C..S....E......",
             "..###..###..M..###..M..###....",
             "..B.......................C...",
             "..P....###....#####....##..G..",
@@ -64,7 +64,7 @@ def load_levels():
         ],
         [
             "..............................",
-            "...............C..........C...",
+            "...........S...C..........C...",
             "....C.....#####.....#####.....",
             "....###...........L...........",
             "..P........E..M..B....C...G...",
@@ -76,7 +76,7 @@ def load_levels():
             "..............................",
             "..C.....C......C......C.......",
             "..###...###....###....###.....",
-            "....M.........H...............",
+            "....M.........H......S........",
             "..P.....C....###.....C...G....",
             "#############....#############",
             ".....#..V..#.....^.......#....",
@@ -86,7 +86,7 @@ def load_levels():
             "..............................",
             "..C.....C....C....C.....C.....",
             "..###..###..###..###..###.....",
-            "...M......E........E......M...",
+            "...M......E....S...E......M...",
             "..P..B..###..^..###..B...G....",
             "#####....###.....###....######",
             "...#..C..L....C....L...C..#...",
@@ -94,12 +94,12 @@ def load_levels():
         ],
         [
             "..............................",
-            "..C..M....C....E....C....M....",
+            "..C..M....C....E.S..C....M....",
             "..###..###..###..###..###.....",
             "..^...........^...........^...",
             "..P..B..C..L....C..B...C..G...",
             "#####M####....#####M##########",
-            "...#.....#..H.....#.....#.....",
+            "...#..S..#..H.....#.....#.....",
             "##############################",
         ],
         [
@@ -107,7 +107,7 @@ def load_levels():
             "..C...E..^..C....E..^..C...T..",
             "..###..###..###..###..###..###",
             "..B...M....^..M....^.....B....",
-            "..P....C...###.....C..B...G...",
+            "..P....C...###.....C..B...G.S.",
             "#####.....###...M.....###.....",
             "..L..#..C..#...C....^..#..C...",
             "##############################",
@@ -117,7 +117,7 @@ def load_levels():
             "..C..H..^..C...L..^..C..H..G..",
             "..###..###..###..###..###.....",
             "..B.........^.........^.......",
-            "..P..M..C....K.....C..M.......",
+            "..P..M..C....K.....C..M..S....",
             "#############....#############",
             "..L..#.....#.............#....",
             "##############################",
@@ -193,6 +193,16 @@ class Collectible(pygame.sprite.Sprite):
         pygame.draw.circle(self.image, (255, 215, 0), (TILE // 4, TILE // 4), TILE // 4)
         pygame.draw.circle(self.image, (255, 255, 240), (TILE // 6, TILE // 6), TILE // 8)
         self.rect = self.image.get_rect(center=(pos[0] + TILE // 2, pos[1] + TILE // 2))
+
+class ShieldPickup(pygame.sprite.Sprite):
+    def __init__(self, pos):
+        super().__init__()
+        self.image = Surface((TILE, TILE), pygame.SRCALPHA)
+        glow_rect = self.image.get_rect()
+        pygame.draw.rect(self.image, (70, 220, 255, 120), glow_rect, border_radius=10)
+        pygame.draw.rect(self.image, (150, 240, 255, 180), glow_rect.inflate(-10, -10), border_radius=10)
+        pygame.draw.circle(self.image, (255, 255, 255, 220), glow_rect.center, TILE // 5)
+        self.rect = self.image.get_rect(topleft=pos)
 
 class LaserBarrier(pygame.sprite.Sprite):
     def __init__(self, pos, axis="x"):
@@ -377,6 +387,8 @@ class Player(pygame.sprite.Sprite):
         self.collected = 0
         self.facing = 1
         self.shoot_cooldown = 0
+        self.shield_time = 0
+        self.invuln_timer = 0
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
@@ -398,6 +410,15 @@ class Player(pygame.sprite.Sprite):
     def apply_gravity(self):
         self.velocity.y += GRAVITY
         self.velocity.y = min(self.velocity.y, 20)
+
+    def absorb_hit(self):
+        if self.invuln_timer > 0:
+            return True
+        if self.shield_time > 0:
+            self.shield_time = 0
+            self.invuln_timer = 60
+            return True
+        return False
 
     def horizontal_movement(self, tiles):
         self.rect.x += int(self.velocity.x)
@@ -428,6 +449,10 @@ class Player(pygame.sprite.Sprite):
         self.vertical_movement(tiles)
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
+        if self.shield_time > 0:
+            self.shield_time -= 1
+        if self.invuln_timer > 0:
+            self.invuln_timer -= 1
         return projectile
 
 class Level:
@@ -442,6 +467,7 @@ class Level:
         self.boosters = pygame.sprite.Group()
         self.moving_platforms = pygame.sprite.Group()
         self.lasers = pygame.sprite.Group()
+        self.shields = pygame.sprite.Group()
         self.player_start = Vector2(100, 100)
         self.boss = None
 
@@ -457,6 +483,8 @@ class Level:
                     self.teleporters.add(Teleporter(pos))
                 elif cell == 'C':
                     self.collectibles.add(Collectible(pos))
+                elif cell == 'S':
+                    self.shields.add(ShieldPickup(pos))
                 elif cell == 'E':
                     self.enemies.add(Enemy(pos))
                 elif cell == 'H':
@@ -489,6 +517,7 @@ class Game:
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("arial", 24)
+        self.big_font = pygame.font.SysFont("arial", 42, bold=True)
 
         self.levels = [Level(layout) for layout in load_levels()]
         self.level_index = 0
@@ -496,6 +525,9 @@ class Game:
         self.player_projectiles = pygame.sprite.Group()
         self.hazard_projectiles = pygame.sprite.Group()
         self.trail = []
+        self.state = "menu"
+        self.selected_level = 0
+        self.transitioning = False
         self.stars = [
             {
                 "pos": Vector2(random.randint(0, WIDTH), random.randint(0, HEIGHT)),
@@ -539,6 +571,7 @@ class Game:
                         pass
             else:
                 pygame.mixer.music.stop()
+        self.transitioning = False
 
     def draw_background(self):
         draw_gradient_rect(self.screen, (15, 18, 45), (35, 45, 80), Rect(0, 0, WIDTH, HEIGHT))
@@ -571,8 +604,7 @@ class Game:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
                 self.reset_level_state()
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                pygame.quit()
-                sys.exit()
+                self.state = "menu"
 
     def update_player_state(self, level):
         level.moving_platforms.update()
@@ -598,6 +630,10 @@ class Game:
         collected = pygame.sprite.spritecollide(self.player, level.collectibles, dokill=True)
         self.player.collected += len(collected)
 
+        shield_pickups = pygame.sprite.spritecollide(self.player, level.shields, dokill=True)
+        if shield_pickups:
+            self.player.shield_time = 900
+
         # Boosters
         if pygame.sprite.spritecollideany(self.player, level.boosters):
             self.player.velocity.y = JUMP_FORCE * 1.2
@@ -613,6 +649,8 @@ class Game:
             or laser_hit
         )
         if hurtful:
+            if self.player.absorb_hit():
+                return
             self.reset_level_state()
             return
 
@@ -626,11 +664,7 @@ class Game:
             if boss_hits:
                 level.boss.take_hit()
             if level.boss.health <= 0:
-                if self.level_index < len(self.levels) - 1:
-                    self.level_index += 1
-                    self.reset_level_state()
-                else:
-                    self.show_victory_screen()
+                self.advance_level()
                 return
 
         # Player shots damage enemies
@@ -641,13 +675,29 @@ class Game:
         if level.boss and level.boss.health > 0:
             return
 
-        reached_exit = pygame.sprite.spritecollideany(self.player, level.teleporters) or pygame.sprite.spritecollideany(self.player, level.goal)
+        reached_exit = False
+        for teleporter in level.teleporters:
+            if teleporter.rect.inflate(10, 10).colliderect(self.player.rect):
+                reached_exit = True
+                break
+        if not reached_exit and level.goal:
+            goal_sprite = level.goal.sprite
+            if goal_sprite and goal_sprite.rect.inflate(12, 12).colliderect(self.player.rect):
+                reached_exit = True
+
         if reached_exit:
-            if self.level_index < len(self.levels) - 1:
-                self.level_index += 1
-                self.reset_level_state()
-            else:
-                self.show_victory_screen()
+            self.advance_level()
+
+    def advance_level(self):
+        if self.transitioning:
+            return
+        self.transitioning = True
+        if self.level_index < len(self.levels) - 1:
+            self.level_index += 1
+            self.reset_level_state()
+        else:
+            self.show_victory_screen()
+        self.transitioning = False
 
     def show_victory_screen(self):
         message = self.font.render("You cleared all 10 levels! Press R to replay.", True, (255, 255, 255))
@@ -671,6 +721,7 @@ class Game:
         level.spikes.draw(self.screen)
         level.moving_platforms.draw(self.screen)
         level.collectibles.draw(self.screen)
+        level.shields.draw(self.screen)
         level.teleporters.draw(self.screen)
         level.goal.draw(self.screen)
         level.enemies.draw(self.screen)
@@ -689,6 +740,13 @@ class Game:
         self.hazard_projectiles.draw(self.screen)
         if level.boss:
             self.screen.blit(level.boss.image, level.boss.rect)
+        if self.player.shield_time > 0 or self.player.invuln_timer > 0:
+            aura_size = TILE * 1.4
+            aura = Surface((aura_size, aura_size), pygame.SRCALPHA)
+            alpha = 160 if self.player.shield_time > 0 else 90
+            pygame.draw.circle(aura, (120, 220, 255, alpha), (aura_size // 2, aura_size // 2), aura_size // 2)
+            rect = aura.get_rect(center=self.player.rect.center)
+            self.screen.blit(aura, rect)
         self.screen.blit(self.player.image, self.player.rect)
 
     def draw_hud(self, level):
@@ -699,6 +757,13 @@ class Game:
         guide = self.font.render("Move: A/D or ←/→, Jump: W/SPACE/↑, Shoot: E", True, (200, 200, 220))
         self.screen.blit(guide, (20, 50))
 
+        if self.player.shield_time > 0:
+            shield_text = self.font.render("Shield active", True, (160, 235, 255))
+            self.screen.blit(shield_text, (20, 80))
+        elif self.player.invuln_timer > 0:
+            shield_text = self.font.render("Shield recovering", True, (255, 200, 200))
+            self.screen.blit(shield_text, (20, 80))
+
         if level.boss:
             health_text = self.font.render(f"Boss HP: {level.boss.health}", True, (255, 160, 200))
             self.screen.blit(health_text, (WIDTH - 220, 20))
@@ -706,16 +771,97 @@ class Game:
     def run(self):
         while True:
             self.clock.tick(FPS)
-            self.handle_events()
+            if self.state == "menu":
+                self.handle_menu_events()
+                self.draw_background()
+                self.draw_menu()
+            elif self.state == "level_select":
+                self.handle_level_select_events()
+                self.draw_background()
+                self.draw_level_select()
+            else:
+                self.handle_events()
+                level = self.levels[self.level_index]
+                self.update_player_state(level)
 
-            level = self.levels[self.level_index]
-            self.update_player_state(level)
-
-            self.draw_background()
-            self.draw_level(level)
-            self.draw_hud(level)
+                self.draw_background()
+                self.draw_level(level)
+                self.draw_hud(level)
 
             pygame.display.flip()
+
+    def handle_menu_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    self.start_level(self.level_index)
+                elif event.key == pygame.K_l:
+                    self.state = "level_select"
+                elif event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+
+    def draw_menu(self):
+        title = self.big_font.render("Python Platformer", True, (245, 245, 255))
+        subtitle = self.font.render("10 handcrafted levels | Shields, lasers, boss fight", True, (210, 220, 240))
+        prompt = self.font.render("Press ENTER to play, L to choose a level, ESC to quit", True, (200, 255, 200))
+        self.screen.blit(title, title.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
+        self.screen.blit(subtitle, subtitle.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 50)))
+        self.screen.blit(prompt, prompt.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 100)))
+
+    def handle_level_select_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if pygame.K_1 <= event.key <= pygame.K_9:
+                    self.selected_level = event.key - pygame.K_1
+                elif event.key == pygame.K_0:
+                    self.selected_level = 9
+                elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    self.start_level(self.selected_level)
+                elif event.key in (pygame.K_LEFT, pygame.K_a):
+                    self.selected_level = (self.selected_level - 1) % len(self.levels)
+                elif event.key in (pygame.K_RIGHT, pygame.K_d):
+                    self.selected_level = (self.selected_level + 1) % len(self.levels)
+                elif event.key in (pygame.K_UP, pygame.K_w):
+                    self.selected_level = (self.selected_level - 5) % len(self.levels)
+                elif event.key in (pygame.K_DOWN, pygame.K_s):
+                    self.selected_level = (self.selected_level + 5) % len(self.levels)
+                elif event.key == pygame.K_ESCAPE:
+                    self.state = "menu"
+
+    def draw_level_select(self):
+        title = self.big_font.render("Select a level", True, (240, 255, 240))
+        self.screen.blit(title, title.get_rect(center=(WIDTH // 2, 70)))
+        grid_cols = 5
+        spacing_x = WIDTH // (grid_cols + 1)
+        spacing_y = 100
+        start_y = 170
+        for idx in range(len(self.levels)):
+            row = idx // grid_cols
+            col = idx % grid_cols
+            pos = (spacing_x + col * spacing_x, start_y + row * spacing_y)
+            label = f"Level {idx + 1}"
+            color = (120, 255, 170) if idx == self.selected_level else (210, 220, 230)
+            box = pygame.Surface((150, 60), pygame.SRCALPHA)
+            pygame.draw.rect(box, (40, 60, 90, 180), box.get_rect(), border_radius=12)
+            pygame.draw.rect(box, (color[0], color[1], color[2], 200), box.get_rect(), 3, border_radius=12)
+            text = self.font.render(label, True, color)
+            box.blit(text, text.get_rect(center=(75, 30)))
+            self.screen.blit(box, box.get_rect(center=pos))
+
+        hint = self.font.render("Use arrows/wasd or 1-0 keys. Enter to load.", True, (200, 220, 240))
+        self.screen.blit(hint, hint.get_rect(center=(WIDTH // 2, HEIGHT - 60)))
+
+    def start_level(self, index):
+        self.level_index = max(0, min(index, len(self.levels) - 1))
+        self.reset_level_state()
+        self.state = "playing"
 
 
 if __name__ == "__main__":
