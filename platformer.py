@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import random
 import math
+import array
 
 import pygame
 from pygame import Rect, Surface
@@ -114,12 +115,13 @@ def load_levels():
         ],
         [
             "..............................",
-            "..C..H..^..C...L..^..C..H..G..",
-            "..###..###..###..###..###.....",
-            "..B.........^.........^.......",
-            "..P..M..C....K.....C..M..S....",
-            "#############....#############",
-            "..L..#.....#.............#....",
+            "..C..H..^..C...H..^..C..H..S..",
+            "..M........T........M......G..",
+            "..............................",
+            "..C....^...K...^....C....C....",
+            "..P...........................",
+            "##############################",
+            "##############################",
             "##############################",
         ],
     ]
@@ -260,11 +262,19 @@ class Enemy(pygame.sprite.Sprite):
         self.image.fill((210, 80, 90))
         pygame.draw.rect(self.image, (255, 200, 210), self.image.get_rect(), 3, border_radius=8)
         self.rect = self.image.get_rect(topleft=pos)
-        self.speed = 2
+        self.speed = 2.6
         self.direction = 1
+        self.pace_timer = random.randint(50, 110)
 
     def update(self, tiles):
+        self.pace_timer -= 1
+        if self.pace_timer <= 0:
+            self.direction *= -1
+            self.pace_timer = random.randint(80, 140)
+
         self.rect.x += self.speed * self.direction
+
+        collided = False
         for tile in tiles:
             if self.rect.colliderect(tile.rect):
                 self.direction *= -1
@@ -272,7 +282,16 @@ class Enemy(pygame.sprite.Sprite):
                     self.rect.left = tile.rect.right
                 else:
                     self.rect.right = tile.rect.left
+                collided = True
+                self.pace_timer = random.randint(70, 130)
                 break
+
+        if not collided:
+            foot_x = self.rect.left if self.direction < 0 else self.rect.right
+            foot_probe = Rect(foot_x - 4, self.rect.bottom, 8, 8)
+            if not any(tile.rect.colliderect(foot_probe) for tile in tiles):
+                self.direction *= -1
+                self.pace_timer = random.randint(60, 120)
 
 class HoverEnemy(pygame.sprite.Sprite):
     def __init__(self, pos):
@@ -285,16 +304,20 @@ class HoverEnemy(pygame.sprite.Sprite):
         self.origin = Vector2(self.rect.center)
         self.phase = random.randint(0, 120)
         self.shoot_cooldown = random.randint(70, 120)
+        self.drift = Vector2(random.choice([-1, 1]) * 0.6, 0)
 
-    def update(self, tiles, hazard_projectiles: pygame.sprite.Group):
+    def update(self, tiles, hazard_projectiles: pygame.sprite.Group, sound_callback=None, sound=None):
         self.phase += 1
         float_y = math.sin(self.phase / 35) * 20
         sway_x = math.cos(self.phase / 40) * 16
+        self.origin += self.drift
         self.rect.center = (self.origin.x + sway_x, self.origin.y + float_y)
         self.shoot_cooldown -= 1
         if self.shoot_cooldown <= 0:
-            hazard_projectiles.add(Projectile(self.rect.center, Vector2(0, 1), color=(255, 150, 90), speed=7, radius=8))
-            self.shoot_cooldown = 120
+            hazard_projectiles.add(Projectile(self.rect.center, Vector2(0, 1), color=(255, 150, 90), speed=8, radius=8))
+            if sound_callback:
+                sound_callback(sound)
+            self.shoot_cooldown = 110
 
 class Projectile(pygame.sprite.Sprite):
     def __init__(self, pos, direction, color=(230, 60, 60), speed=PROJECTILE_SPEED, radius=10):
@@ -315,17 +338,20 @@ class Boss(pygame.sprite.Sprite):
     def __init__(self, pos):
         super().__init__()
         self.image = Surface((TILE * 1.6, TILE * 1.6), pygame.SRCALPHA)
-        pygame.draw.rect(self.image, (120, 40, 160), self.image.get_rect(), border_radius=16)
-        pygame.draw.rect(self.image, (200, 120, 255), self.image.get_rect(), 6, border_radius=16)
-        pygame.draw.circle(self.image, (255, 80, 120), (int(self.image.get_width() * 0.25), int(self.image.get_height() * 0.3)), 12)
-        pygame.draw.circle(self.image, (255, 80, 120), (int(self.image.get_width() * 0.75), int(self.image.get_height() * 0.3)), 12)
-        pygame.draw.rect(self.image, (255, 220, 255), Rect(12, self.image.get_height() // 2, self.image.get_width() - 24, 12), border_radius=8)
+        pygame.draw.rect(self.image, (70, 30, 120), self.image.get_rect(), border_radius=18)
+        pygame.draw.rect(self.image, (210, 140, 255), self.image.get_rect(), 6, border_radius=18)
+        pygame.draw.circle(self.image, (255, 110, 150), (int(self.image.get_width() * 0.25), int(self.image.get_height() * 0.3)), 12)
+        pygame.draw.circle(self.image, (255, 110, 150), (int(self.image.get_width() * 0.75), int(self.image.get_height() * 0.3)), 12)
+        pygame.draw.rect(self.image, (255, 240, 255), Rect(10, self.image.get_height() // 2, self.image.get_width() - 20, 14), border_radius=10)
+        pygame.draw.circle(self.image, (90, 210, 255), (self.image.get_width() // 2, int(self.image.get_height() * 0.7)), 10)
         self.rect = self.image.get_rect(topleft=pos)
         self.velocity = Vector2(0, 0)
         self.on_ground = False
-        self.health = 14
-        self.jump_cooldown = 120
-        self.shot_cooldown = 80
+        self.health = 18
+        self.jump_cooldown = 110
+        self.shot_cooldown = 70
+        self.dash_cooldown = 220
+        self.volley_cooldown = 180
 
     def apply_gravity(self):
         self.velocity.y += GRAVITY
@@ -352,21 +378,46 @@ class Boss(pygame.sprite.Sprite):
                     self.rect.top = tile.rect.bottom
                     self.velocity.y = 0
 
-    def update(self, tiles, player, hazard_projectiles: pygame.sprite.Group):
+    def update(self, tiles, player, hazard_projectiles: pygame.sprite.Group, volley_sound=None, sound_callback=None):
         self.apply_gravity()
         self.jump_cooldown -= 1
         self.shot_cooldown -= 1
+        self.dash_cooldown -= 1
+        self.volley_cooldown -= 1
+
+        # Ground pressure: strafe toward the player if they are far away
+        if self.on_ground:
+            desired = 3 * (1 if player.rect.centerx > self.rect.centerx else -1)
+            self.velocity.x = desired
 
         if self.on_ground and self.jump_cooldown <= 0:
             direction = 1 if player.rect.centerx > self.rect.centerx else -1
-            self.velocity.x = 4 * direction
-            self.velocity.y = JUMP_FORCE * 0.9
-            self.jump_cooldown = 150
+            self.velocity.x = 5 * direction
+            self.velocity.y = JUMP_FORCE * 0.85
+            self.jump_cooldown = 130
 
         if self.shot_cooldown <= 0:
             direction = Vector2(player.rect.center) - Vector2(self.rect.center)
-            hazard_projectiles.add(Projectile(self.rect.center, direction, color=(255, 120, 255), speed=8, radius=12))
-            self.shot_cooldown = 110
+            hazard_projectiles.add(Projectile(self.rect.center, direction, color=(255, 120, 255), speed=9, radius=12))
+            self.shot_cooldown = 95
+
+        if self.dash_cooldown <= 0 and self.on_ground:
+            dash_dir = 1 if player.rect.centerx > self.rect.centerx else -1
+            self.velocity.x = 9 * dash_dir
+            self.velocity.y = JUMP_FORCE * 0.55
+            self.dash_cooldown = 220
+
+        if self.volley_cooldown <= 0:
+            angles = [i for i in range(0, 360, 45)]
+            center = Vector2(self.rect.center)
+            for angle in angles:
+                rad = math.radians(angle)
+                hazard_projectiles.add(
+                    Projectile(center, Vector2(math.cos(rad), math.sin(rad)), color=(120, 255, 220), speed=6, radius=9)
+                )
+            self.volley_cooldown = 260
+            if sound_callback:
+                sound_callback(volley_sound)
 
         self.move_and_collide(tiles)
 
@@ -509,7 +560,7 @@ class Game:
         self.audio_enabled = False
         pygame.init()
         try:
-            pygame.mixer.init()
+            pygame.mixer.init(frequency=44100, size=-16, channels=2)
             self.audio_enabled = True
         except pygame.error:
             self.audio_enabled = False
@@ -518,6 +569,13 @@ class Game:
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("arial", 24)
         self.big_font = pygame.font.SysFont("arial", 42, bold=True)
+
+        self.shoot_sound = None
+        self.enemy_shoot_sound = None
+        self.boss_volley_sound = None
+        self.pickup_sound = None
+        if self.audio_enabled:
+            self.build_sounds()
 
         self.levels = [Level(layout) for layout in load_levels()]
         self.level_index = 0
@@ -539,6 +597,29 @@ class Game:
         ]
         self.boss_music_path = self.find_boss_music()
         self.reset_level_state()
+
+    def build_sounds(self):
+        sample_rate = 44100
+
+        def tone(freq, duration_ms=160, volume=0.35):
+            length = int(sample_rate * duration_ms / 1000)
+            buf = array.array("h")
+            for i in range(length):
+                value = int(volume * 32767 * math.sin(2 * math.pi * freq * (i / sample_rate)))
+                buf.append(value)
+            return pygame.mixer.Sound(buffer=buf.tobytes())
+
+        self.shoot_sound = tone(520, 120, 0.28)
+        self.enemy_shoot_sound = tone(300, 140, 0.22)
+        self.boss_volley_sound = tone(140, 200, 0.35)
+        self.pickup_sound = tone(760, 120, 0.3)
+
+    def play_sound(self, sound):
+        if self.audio_enabled and sound:
+            try:
+                sound.play()
+            except pygame.error:
+                pass
 
     def find_boss_music(self):
         base = Path(__file__).parent
@@ -611,10 +692,11 @@ class Game:
         level.lasers.update()
         collision_tiles = list(level.tiles) + list(level.moving_platforms)
         level.enemies.update(collision_tiles)
-        level.hover_enemies.update(collision_tiles, self.hazard_projectiles)
+        level.hover_enemies.update(collision_tiles, self.hazard_projectiles, self.play_sound, self.enemy_shoot_sound)
         player_projectile = self.player.update(collision_tiles)
         if player_projectile:
             self.player_projectiles.add(player_projectile)
+            self.play_sound(self.shoot_sound)
 
         self.player_projectiles.update()
         self.hazard_projectiles.update()
@@ -629,10 +711,13 @@ class Game:
         # Collectibles
         collected = pygame.sprite.spritecollide(self.player, level.collectibles, dokill=True)
         self.player.collected += len(collected)
+        if collected:
+            self.play_sound(self.pickup_sound)
 
         shield_pickups = pygame.sprite.spritecollide(self.player, level.shields, dokill=True)
         if shield_pickups:
             self.player.shield_time = 900
+            self.play_sound(self.pickup_sound)
 
         # Boosters
         if pygame.sprite.spritecollideany(self.player, level.boosters):
@@ -656,13 +741,14 @@ class Game:
 
         # Boss logic
         if level.boss:
-            level.boss.update(collision_tiles, self.player, self.hazard_projectiles)
+            level.boss.update(collision_tiles, self.player, self.hazard_projectiles, self.boss_volley_sound, self.play_sound)
             if pygame.sprite.collide_rect(self.player, level.boss):
                 self.reset_level_state()
                 return
             boss_hits = pygame.sprite.spritecollide(level.boss, self.player_projectiles, dokill=True)
             if boss_hits:
                 level.boss.take_hit()
+                self.play_sound(self.enemy_shoot_sound)
             if level.boss.health <= 0:
                 self.advance_level()
                 return

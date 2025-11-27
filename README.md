@@ -31,5 +31,6 @@ python platformer.py
 - A **main menu** with a **level selector** (all 10 levels unlocked) so you can jump straight into any stage.
 - Generous **green teleporter overlays** on goals and pads (`T`) with broader detection to keep progression snappy and avoid getting stuck after beating sections.
 - **Shield pickups** (`S`) that grant a temporary protective bubble and brief invulnerability on hit, visible as a blue aura.
-- 10 tuned levels with boosters, spikes, patrolling walkers, hovering shooters, moving platforms, timed laser barriers, and collectibles, all balanced for fair paths.
-- Level 10 boss with unique attacks and optional music: a file named `FFVII_Battle_ThemeV2.mp3` in the game directory is preferred (any `*boss*.ogg|.mp3|.wav` will also be detected).
+- 10 tuned levels with boosters, spikes, patrolling walkers (now edge-aware), hovering shooters, moving platforms, timed laser barriers, and collectibles, all balanced for fair paths.
+- Custom in-engine sound effects for firing, enemy volleys, and pickups—no external SFX needed.
+- A flat, expanded Level 10 arena with a more mobile boss that dashes, leaps, volleys projectiles, and optionally plays `FFVII_Battle_ThemeV2.mp3` (any `*boss*.ogg|.mp3|.wav` file is also detected).
