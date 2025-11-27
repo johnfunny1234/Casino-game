@@ -679,6 +679,7 @@ class Game:
         self.enemy_shoot_sound = None
         self.boss_volley_sound = None
         self.scream_sound = None
+        self.scream_duration_ms = 3000
         self.pickup_sound = None
         if self.audio_enabled:
             self.build_sounds()
@@ -850,13 +851,14 @@ class Game:
         if not (self.audio_enabled and self.scream_sound):
             return
         try:
-            self.scream_channel = self.scream_sound.play()
+            self.scream_channel = self.scream_sound.play(maxtime=self.scream_duration_ms)
             self.scream_started_at = pygame.time.get_ticks()
         except pygame.error:
             self.scream_channel = None
             self.scream_started_at = None
 
-    def stop_scream_if_elapsed(self, duration_ms=3000):
+    def stop_scream_if_elapsed(self, duration_ms=None):
+        duration_ms = self.scream_duration_ms if duration_ms is None else duration_ms
         if self.scream_channel and self.scream_started_at is not None:
             if pygame.time.get_ticks() - self.scream_started_at >= duration_ms:
                 try:
@@ -1171,6 +1173,7 @@ class Game:
     def run(self):
         while True:
             self.clock.tick(FPS)
+            self.stop_scream_if_elapsed()
             if self.state == "menu":
                 self.handle_menu_events()
                 self.draw_background()
