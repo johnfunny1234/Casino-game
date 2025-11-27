@@ -487,7 +487,7 @@ class Boss(pygame.sprite.Sprite):
         pygame.draw.rect(self.image, (255, 255, 255), self.image.get_rect(), 2, border_radius=14)
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, pos):
+    def __init__(self, pos, god_mode=False):
         super().__init__()
         self.image = Surface((TILE * 0.8, TILE * 0.9), pygame.SRCALPHA)
         body_rect = self.image.get_rect()
@@ -500,7 +500,13 @@ class Player(pygame.sprite.Sprite):
         self.facing = 1
         self.shoot_cooldown = 0
         self.shield_time = 0
+        self.shield_energy_max = 140
+        self.shield_energy = self.shield_energy_max
+        self.shield_break_timer = 0
+        self.shield_regen_delay = 0
+        self.shielding = False
         self.invuln_timer = 0
+        self.god_mode = god_mode
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
@@ -514,6 +520,11 @@ class Player(pygame.sprite.Sprite):
         if (keys[pygame.K_SPACE] or keys[pygame.K_w] or keys[pygame.K_UP]) and self.on_ground:
             self.velocity.y = JUMP_FORCE
             self.on_ground = False
+        self.shielding = (
+            (keys[pygame.K_f])
+            and self.shield_break_timer <= 0
+            and self.shield_energy > 5
+        )
         if keys[pygame.K_e] and self.shoot_cooldown <= 0:
             self.shoot_cooldown = 18
             return Projectile(self.rect.center, Vector2(self.facing, 0), color=(230, 60, 60))
@@ -524,11 +535,18 @@ class Player(pygame.sprite.Sprite):
         self.velocity.y = min(self.velocity.y, 20)
 
     def absorb_hit(self):
+        if self.god_mode:
+            return True
         if self.invuln_timer > 0:
             return True
-        if self.shield_time > 0:
-            self.shield_time = 0
-            self.invuln_timer = 60
+        if (self.shielding or self.shield_time > 0) and self.shield_energy > 0:
+            self.shield_energy -= 45
+            self.shield_regen_delay = 50
+            if self.shield_energy <= 0:
+                self.shield_energy = 0
+                self.shield_break_timer = 180
+                self.shielding = False
+            self.invuln_timer = 25
             return True
         return False
 
@@ -565,6 +583,19 @@ class Player(pygame.sprite.Sprite):
             self.shield_time -= 1
         if self.invuln_timer > 0:
             self.invuln_timer -= 1
+        if self.shield_break_timer > 0:
+            self.shield_break_timer -= 1
+        if self.shield_regen_delay > 0:
+            self.shield_regen_delay -= 1
+
+        if self.shielding:
+            self.shield_energy = max(0, self.shield_energy - 0.6)
+            if self.shield_energy <= 0:
+                self.shield_break_timer = 180
+                self.shielding = False
+        elif self.shield_break_timer <= 0 and self.shield_regen_delay <= 0:
+            regen_rate = 0.45 + (0.2 if self.shield_time > 0 else 0)
+            self.shield_energy = min(self.shield_energy_max, self.shield_energy + regen_rate)
         return projectile
 
 class Level:
@@ -641,7 +672,8 @@ class Game:
 
         self.levels = [Level(layout) for layout in load_levels()]
         self.level_index = 0
-        self.player = Player(self.levels[self.level_index].player_start)
+        self.god_mode = False
+        self.player = Player(self.levels[self.level_index].player_start, god_mode=self.god_mode)
         self.player_projectiles = pygame.sprite.Group()
         self.hazard_projectiles = pygame.sprite.Group()
         self.wave_enemies = pygame.sprite.Group()
@@ -711,6 +743,12 @@ class Game:
         self.player.rect.topleft = level.player_start
         self.player.velocity = Vector2(0, 0)
         self.player.collected = 0
+        self.player.god_mode = self.god_mode
+        self.player.shield_time = 0
+        self.player.shield_energy = self.player.shield_energy_max
+        self.player.shield_break_timer = 0
+        self.player.shield_regen_delay = 0
+        self.player.shielding = False
         self.player_projectiles.empty()
         self.hazard_projectiles.empty()
         self.wave_enemies.empty()
@@ -868,6 +906,9 @@ class Game:
         shield_pickups = pygame.sprite.spritecollide(self.player, level.shields, dokill=True)
         if shield_pickups:
             self.player.shield_time = 900
+            self.player.shield_energy = self.player.shield_energy_max
+            self.player.shield_break_timer = 0
+            self.player.shield_regen_delay = 0
             self.play_sound(self.pickup_sound)
 
         # Boosters
@@ -885,6 +926,8 @@ class Game:
             or pygame.sprite.spritecollideany(self.player, self.hazard_projectiles)
             or laser_hit
         )
+        if self.god_mode:
+            hurtful = False
         if hurtful:
             if self.player.absorb_hit():
                 return
@@ -894,7 +937,7 @@ class Game:
         # Boss logic
         if level.boss:
             level.boss.update(collision_tiles, self.player, self.hazard_projectiles, self.boss_volley_sound, self.play_sound)
-            if pygame.sprite.collide_rect(self.player, level.boss):
+            if pygame.sprite.collide_rect(self.player, level.boss) and not self.god_mode:
                 self.reset_level_state()
                 return
             boss_hits = pygame.sprite.spritecollide(level.boss, self.player_projectiles, dokill=True)
@@ -1021,15 +1064,23 @@ class Game:
                f" | Reset: R | Quit: ESC"
         text_surface = self.font.render(info, True, (240, 240, 240))
         self.screen.blit(text_surface, (20, 20))
-        guide = self.font.render("Move: A/D or ←/→, Jump: W/SPACE/↑, Shoot: E", True, (200, 200, 220))
+        guide = self.font.render("Move: A/D or ←/→, Jump: W/SPACE/↑, Shoot: E, Shield: F", True, (200, 200, 220))
         self.screen.blit(guide, (20, 50))
 
-        if self.player.shield_time > 0:
-            shield_text = self.font.render("Shield active", True, (160, 235, 255))
-            self.screen.blit(shield_text, (20, 80))
+        shield_bar_back = pygame.Rect(20, 80, 220, 16)
+        pygame.draw.rect(self.screen, (40, 60, 90), shield_bar_back, border_radius=6)
+        shield_ratio = self.player.shield_energy / self.player.shield_energy_max
+        shield_bar = pygame.Rect(20, 80, int(220 * shield_ratio), 16)
+        color = (120, 230, 255) if self.player.shielding else (80, 160, 220)
+        pygame.draw.rect(self.screen, color, shield_bar, border_radius=6)
+        pygame.draw.rect(self.screen, (210, 230, 255), shield_bar_back, 2, border_radius=6)
+        shield_label = "Shielding" if self.player.shielding else "Shield"
+        if self.player.shield_break_timer > 0:
+            shield_label = "Shield broken"
         elif self.player.invuln_timer > 0:
-            shield_text = self.font.render("Shield recovering", True, (255, 200, 200))
-            self.screen.blit(shield_text, (20, 80))
+            shield_label = "Shield recovering"
+        shield_text = self.font.render(f"{shield_label} (F)", True, (200, 230, 255))
+        self.screen.blit(shield_text, (20, 60))
 
         if level.boss:
             health_text = self.font.render(f"Boss HP: {level.boss.health}", True, (255, 160, 200))
@@ -1043,6 +1094,9 @@ class Game:
         if self.epilogue_ready:
             soon = self.font.render("Walk right: Level 11 / Chapter 2 coming soon", True, (200, 255, 200))
             self.screen.blit(soon, (WIDTH // 2 - soon.get_width() // 2, HEIGHT - 40))
+        if self.god_mode:
+            gm = self.font.render("GOD MODE ENABLED", True, (255, 230, 140))
+            self.screen.blit(gm, (WIDTH - gm.get_width() - 20, HEIGHT - 40))
 
     def run(self):
         while True:
@@ -1051,6 +1105,10 @@ class Game:
                 self.handle_menu_events()
                 self.draw_background()
                 self.draw_menu()
+            elif self.state == "owner_menu":
+                self.handle_owner_menu_events()
+                self.draw_background()
+                self.draw_owner_menu()
             elif self.state == "level_select":
                 self.handle_level_select_events()
                 self.draw_background()
@@ -1076,6 +1134,8 @@ class Game:
                     self.start_level(self.level_index)
                 elif event.key == pygame.K_l:
                     self.state = "level_select"
+                elif event.key == pygame.K_o:
+                    self.state = "owner_menu"
                 elif event.key == pygame.K_ESCAPE:
                     pygame.quit()
                     sys.exit()
@@ -1084,9 +1144,37 @@ class Game:
         title = self.big_font.render("Python Platformer", True, (245, 245, 255))
         subtitle = self.font.render("10 handcrafted levels | Shields, lasers, boss fight", True, (210, 220, 240))
         prompt = self.font.render("Press ENTER to play, L to choose a level, ESC to quit", True, (200, 255, 200))
+        owner_prompt = self.font.render("Press O for owner tools (testing)", True, (255, 200, 200))
         self.screen.blit(title, title.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
         self.screen.blit(subtitle, subtitle.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 50)))
         self.screen.blit(prompt, prompt.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 100)))
+        self.screen.blit(owner_prompt, owner_prompt.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 140)))
+
+    def handle_owner_menu_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    self.god_mode = not self.god_mode
+                    self.player.god_mode = self.god_mode
+                elif event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
+                    self.state = "menu"
+                elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
+                    self.state = "menu"
+
+    def draw_owner_menu(self):
+        title = self.big_font.render("Owner Menu", True, (255, 220, 220))
+        hint = self.font.render("Testing utilities (not for players)", True, (230, 200, 200))
+        god_status = "ON" if self.god_mode else "OFF"
+        god_color = (170, 255, 170) if self.god_mode else (255, 180, 180)
+        option = self.font.render(f"1) God Mode: {god_status}", True, god_color)
+        close = self.font.render("ENTER/ESC to return", True, (210, 220, 240))
+        self.screen.blit(title, title.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
+        self.screen.blit(hint, hint.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 40)))
+        self.screen.blit(option, option.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 90)))
+        self.screen.blit(close, close.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 140)))
 
     def handle_level_select_events(self):
         for event in pygame.event.get():
