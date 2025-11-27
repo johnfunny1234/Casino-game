@@ -33,4 +33,4 @@ python platformer.py
 - **Shield pickups** (`S`) that grant a temporary protective bubble and brief invulnerability on hit, visible as a blue aura.
 - 10 tuned levels with boosters, spikes, patrolling walkers (now edge-aware), hovering shooters, moving platforms, timed laser barriers, and collectibles, all balanced for fair paths.
 - Custom in-engine sound effects for firing, enemy volleys, and pickups—no external SFX needed.
-- A flat, expanded Level 10 arena with a more mobile boss that dashes, leaps, volleys projectiles, and optionally plays `FFVII_Battle_ThemeV2.mp3` (any `*boss*.ogg|.mp3|.wav` file is also detected).
+- A flat Level 10 arena with a stationary boss that volleys projectiles and optionally plays `FFVII_Battle_ThemeV2.mp3` (any `*boss*.ogg|.mp3|.wav` file is also detected).

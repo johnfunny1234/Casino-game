@@ -115,11 +115,12 @@ def load_levels():
         ],
         [
             "..............................",
-            "..C..H..^..C...H..^..C..H..S..",
-            "..M........T........M......G..",
             "..............................",
-            "..C....^...K...^....C....C....",
-            "..P...........................",
+            "..............................",
+            "..............................",
+            "...P.....................G....",
+            "............K.................",
+            "..............................",
             "##############################",
             "##############################",
             "##############################",
@@ -380,32 +381,16 @@ class Boss(pygame.sprite.Sprite):
 
     def update(self, tiles, player, hazard_projectiles: pygame.sprite.Group, volley_sound=None, sound_callback=None):
         self.apply_gravity()
+        self.velocity.x = 0
         self.jump_cooldown -= 1
         self.shot_cooldown -= 1
         self.dash_cooldown -= 1
         self.volley_cooldown -= 1
 
-        # Ground pressure: strafe toward the player if they are far away
-        if self.on_ground:
-            desired = 3 * (1 if player.rect.centerx > self.rect.centerx else -1)
-            self.velocity.x = desired
-
-        if self.on_ground and self.jump_cooldown <= 0:
-            direction = 1 if player.rect.centerx > self.rect.centerx else -1
-            self.velocity.x = 5 * direction
-            self.velocity.y = JUMP_FORCE * 0.85
-            self.jump_cooldown = 130
-
         if self.shot_cooldown <= 0:
             direction = Vector2(player.rect.center) - Vector2(self.rect.center)
             hazard_projectiles.add(Projectile(self.rect.center, direction, color=(255, 120, 255), speed=9, radius=12))
             self.shot_cooldown = 95
-
-        if self.dash_cooldown <= 0 and self.on_ground:
-            dash_dir = 1 if player.rect.centerx > self.rect.centerx else -1
-            self.velocity.x = 9 * dash_dir
-            self.velocity.y = JUMP_FORCE * 0.55
-            self.dash_cooldown = 220
 
         if self.volley_cooldown <= 0:
             angles = [i for i in range(0, 360, 45)]
