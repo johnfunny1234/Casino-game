@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 import random
+import math
 
 import pygame
 from pygame import Rect, Surface
@@ -20,53 +21,53 @@ def load_levels():
     return [
         [
             "..............................",
-            "...........C..............C...",
-            "...........###............###.",
-            "...P..........................",
-            "#####...............C.........",
-            "....#...............###.......",
-            "....#....C....................",
-            "....######....###.......G.....",
+            "...C...............C.......C..",
+            "...###.......###.......###....",
+            "..P....................B......",
+            "#####...........C........G....",
+            "....#....###..........###.....",
+            "....#.........................",
+            "...^######....###.......###...",
             "##############################",
         ],
         [
             "..............................",
-            "....C.............C...........",
-            "....###...........###.........",
-            "...........C.............C....",
-            "...........###.....^...###....",
-            "..P.....B..................G..",
-            "##########....#####....#######",
-            "..............#..............#",
+            "..C.....C......C..............",
+            "..###...###....###....###.....",
+            ".....M.............L..........",
+            "..P....B....E.............G...",
+            "#####...........###....#######",
+            "....#....^.............#......",
+            "..M.#.........C........#......",
             "##############################",
         ],
         [
             "..............................",
-            "..C.........C...........C.....",
-            "..###.......###.......###.....",
-            "........B.........C...........",
-            "........###....###.....^......",
-            "..P....................C..G...",
-            "############....##############",
-            "...........#....#...........##",
+            "...C....H....C....H....C......",
+            "..###..###..###..###..###.....",
+            "...........^.......^..........",
+            "..P...B....C....E....C....G...",
+            "#####...........#####....#####",
+            "....#....M.............#......",
+            "....#........C...........#....",
             "##############################",
         ],
         [
             "..............................",
-            "..C.........C.........C.......",
-            "..###....E...###.....###......",
-            "......C.............C...B.....",
+            "..C....E.......C.......E......",
+            "..###..###..M..###..M..###....",
+            "..B.......................C...",
             "..P....###....#####....##..G..",
             "#####..###..........###..#####",
-            ".....#....#...E.....#....#....",
+            ".....#....#...L.....#....#....",
             "##############################",
         ],
         [
             "..............................",
             "...............C..........C...",
             "....C.....#####.....#####.....",
-            "....###.......................",
-            "..P........E....B....C....G...",
+            "....###...........L...........",
+            "..P........E..M..B....C...G...",
             "#############....#############",
             ".....#.....#.............#....",
             "##############################",
@@ -75,50 +76,50 @@ def load_levels():
             "..............................",
             "..C.....C......C......C.......",
             "..###...###....###....###.....",
-            "..............E...............",
+            "....M.........H...............",
             "..P.....C....###.....C...G....",
             "#############....#############",
-            ".....#.....#.............#....",
+            ".....#..V..#.....^.......#....",
             "##############################",
         ],
         [
             "..............................",
             "..C.....C....C....C.....C.....",
             "..###..###..###..###..###.....",
-            ".........E........E...........",
+            "...M......E........E......M...",
             "..P..B..###..^..###..B...G....",
             "#####....###.....###....######",
-            "...#..C.......C......C...#....",
+            "...#..C..L....C....L...C..#...",
             "##############################",
         ],
         [
             "..............................",
-            "..C...E....C....E....C........",
+            "..C..M....C....E....C....M....",
             "..###..###..###..###..###.....",
-            "...........^......^...........",
-            "..P.....C....B........C..G....",
-            "#############....#############",
-            ".....#.....#.............#....",
-            "##############################",
-        ],
-        [
-            "..............................",
-            "..C...E..^..C....E..^..C......",
-            "..###..###..###..###..###.....",
-            "...........^......^...........",
-            "..P.....C....B....^..C..G.....",
-            "#############....#############",
-            ".....#.....#.............#....",
+            "..^...........^...........^...",
+            "..P..B..C..L....C..B...C..G...",
+            "#####M####....#####M##########",
+            "...#.....#..H.....#.....#.....",
             "##############################",
         ],
         [
             "..............................",
             "..C...E..^..C....E..^..C...G..",
             "..###..###..###..###..###.....",
-            "..B.........^.........^.......",
+            "..B...M....^....M....^........",
             "..P.....C....K.....C..........",
             "#############....#############",
-            ".....#.....#.............#....",
+            "..L..#.....#.............#....",
+            "##############################",
+        ],
+        [
+            "..............................",
+            "..C..H..^..C...L..^..C..H..G..",
+            "..###..###..###..###..###.....",
+            "..B.........^.........^.......",
+            "..P..M..C....K.....C..M.......",
+            "#############....#############",
+            "..L..#.....#.............#....",
             "##############################",
         ],
     ]
@@ -162,6 +163,29 @@ class Booster(pygame.sprite.Sprite):
         pygame.draw.circle(self.image, (255, 255, 255), (TILE // 2, TILE // 2), TILE // 5)
         self.rect = self.image.get_rect(topleft=pos)
 
+class MovingPlatform(pygame.sprite.Sprite):
+    def __init__(self, pos, axis="x", distance=TILE * 2, speed=2.4):
+        super().__init__()
+        self.image = Surface((TILE, TILE // 2))
+        self.image.fill((120, 190, 230))
+        pygame.draw.rect(self.image, (40, 80, 140), self.image.get_rect(), 3, border_radius=8)
+        self.rect = self.image.get_rect(topleft=(pos[0], pos[1] + TILE // 2))
+        self.start_pos = Vector2(self.rect.topleft)
+        self.axis = axis
+        self.distance = distance
+        self.speed = speed
+        self.direction = 1
+
+    def update(self):
+        if self.axis == "x":
+            self.rect.x += self.speed * self.direction
+            if abs(self.rect.x - self.start_pos.x) >= self.distance:
+                self.direction *= -1
+        else:
+            self.rect.y += self.speed * self.direction
+            if abs(self.rect.y - self.start_pos.y) >= self.distance:
+                self.direction *= -1
+
 class Collectible(pygame.sprite.Sprite):
     def __init__(self, pos):
         super().__init__()
@@ -169,6 +193,36 @@ class Collectible(pygame.sprite.Sprite):
         pygame.draw.circle(self.image, (255, 215, 0), (TILE // 4, TILE // 4), TILE // 4)
         pygame.draw.circle(self.image, (255, 255, 240), (TILE // 6, TILE // 6), TILE // 8)
         self.rect = self.image.get_rect(center=(pos[0] + TILE // 2, pos[1] + TILE // 2))
+
+class LaserBarrier(pygame.sprite.Sprite):
+    def __init__(self, pos, axis="x"):
+        super().__init__()
+        size = (TILE, TILE // 3) if axis == "x" else (TILE // 3, TILE)
+        self.image = Surface(size, pygame.SRCALPHA)
+        self.rect = self.image.get_rect(topleft=pos)
+        self.axis = axis
+        self.timer = random.randint(0, 90)
+        self.active = True
+
+    def update(self):
+        self.timer = (self.timer + 1) % 140
+        self.active = self.timer < 90
+        alpha = 220 if self.active else 70
+        self.image.fill((0, 0, 0, 0))
+        if self.axis == "x":
+            pygame.draw.rect(
+                self.image,
+                (255, 80, 40, alpha),
+                Rect(0, self.image.get_height() // 2 - 5, self.image.get_width(), 10),
+                border_radius=6,
+            )
+        else:
+            pygame.draw.rect(
+                self.image,
+                (255, 80, 40, alpha),
+                Rect(self.image.get_width() // 2 - 5, 0, 10, self.image.get_height()),
+                border_radius=6,
+            )
 
 class Goal(pygame.sprite.Sprite):
     def __init__(self, pos):
@@ -198,6 +252,28 @@ class Enemy(pygame.sprite.Sprite):
                 else:
                     self.rect.right = tile.rect.left
                 break
+
+class HoverEnemy(pygame.sprite.Sprite):
+    def __init__(self, pos):
+        super().__init__()
+        self.image = Surface((TILE * 0.9, TILE * 0.6), pygame.SRCALPHA)
+        body_rect = self.image.get_rect()
+        pygame.draw.ellipse(self.image, (255, 185, 120), body_rect)
+        pygame.draw.ellipse(self.image, (90, 60, 140), Rect(8, 6, body_rect.width - 16, body_rect.height - 12))
+        self.rect = self.image.get_rect(center=(pos[0] + TILE // 2, pos[1] + TILE // 2))
+        self.origin = Vector2(self.rect.center)
+        self.phase = random.randint(0, 120)
+        self.shoot_cooldown = random.randint(70, 120)
+
+    def update(self, tiles, hazard_projectiles: pygame.sprite.Group):
+        self.phase += 1
+        float_y = math.sin(self.phase / 35) * 20
+        sway_x = math.cos(self.phase / 40) * 16
+        self.rect.center = (self.origin.x + sway_x, self.origin.y + float_y)
+        self.shoot_cooldown -= 1
+        if self.shoot_cooldown <= 0:
+            hazard_projectiles.add(Projectile(self.rect.center, Vector2(0, 1), color=(255, 150, 90), speed=7, radius=8))
+            self.shoot_cooldown = 120
 
 class Projectile(pygame.sprite.Sprite):
     def __init__(self, pos, direction, color=(230, 60, 60), speed=PROJECTILE_SPEED, radius=10):
@@ -255,7 +331,7 @@ class Boss(pygame.sprite.Sprite):
                     self.rect.top = tile.rect.bottom
                     self.velocity.y = 0
 
-    def update(self, tiles, player, boss_projectiles: pygame.sprite.Group):
+    def update(self, tiles, player, hazard_projectiles: pygame.sprite.Group):
         self.apply_gravity()
         self.jump_cooldown -= 1
         self.shot_cooldown -= 1
@@ -268,7 +344,7 @@ class Boss(pygame.sprite.Sprite):
 
         if self.shot_cooldown <= 0:
             direction = Vector2(player.rect.center) - Vector2(self.rect.center)
-            boss_projectiles.add(Projectile(self.rect.center, direction, color=(255, 120, 255), speed=8, radius=12))
+            hazard_projectiles.add(Projectile(self.rect.center, direction, color=(255, 120, 255), speed=8, radius=12))
             self.shot_cooldown = 110
 
         self.move_and_collide(tiles)
@@ -350,7 +426,10 @@ class Level:
         self.collectibles = pygame.sprite.Group()
         self.goal = pygame.sprite.GroupSingle()
         self.enemies = pygame.sprite.Group()
+        self.hover_enemies = pygame.sprite.Group()
         self.boosters = pygame.sprite.Group()
+        self.moving_platforms = pygame.sprite.Group()
+        self.lasers = pygame.sprite.Group()
         self.player_start = Vector2(100, 100)
         self.boss = None
 
@@ -367,10 +446,18 @@ class Level:
                     self.collectibles.add(Collectible(pos))
                 elif cell == 'E':
                     self.enemies.add(Enemy(pos))
+                elif cell == 'H':
+                    self.hover_enemies.add(HoverEnemy(pos))
                 elif cell == '^':
                     self.spikes.add(Spike(pos))
                 elif cell == 'B':
                     self.boosters.add(Booster(pos))
+                elif cell == 'M':
+                    self.moving_platforms.add(MovingPlatform(pos, axis="x"))
+                elif cell == 'V':
+                    self.moving_platforms.add(MovingPlatform(pos, axis="y"))
+                elif cell == 'L':
+                    self.lasers.add(LaserBarrier(pos))
                 elif cell == 'K':
                     self.boss = Boss(pos)
 
@@ -392,7 +479,7 @@ class Game:
         self.level_index = 0
         self.player = Player(self.levels[self.level_index].player_start)
         self.player_projectiles = pygame.sprite.Group()
-        self.boss_projectiles = pygame.sprite.Group()
+        self.hazard_projectiles = pygame.sprite.Group()
         self.trail = []
         self.stars = [
             {
@@ -422,7 +509,7 @@ class Game:
         self.player.velocity = Vector2(0, 0)
         self.player.collected = 0
         self.player_projectiles.empty()
-        self.boss_projectiles.empty()
+        self.hazard_projectiles.empty()
         # Deep copy collectibles to allow replaying levels
         layout_copy = load_levels()[self.level_index]
         self.levels[self.level_index] = Level(layout_copy)
@@ -473,13 +560,17 @@ class Game:
                 sys.exit()
 
     def update_player_state(self, level):
-        level.enemies.update(level.tiles)
-        player_projectile = self.player.update(level.tiles)
+        level.moving_platforms.update()
+        level.lasers.update()
+        collision_tiles = list(level.tiles) + list(level.moving_platforms)
+        level.enemies.update(collision_tiles)
+        level.hover_enemies.update(collision_tiles, self.hazard_projectiles)
+        player_projectile = self.player.update(collision_tiles)
         if player_projectile:
             self.player_projectiles.add(player_projectile)
 
         self.player_projectiles.update()
-        self.boss_projectiles.update()
+        self.hazard_projectiles.update()
 
         speed = abs(self.player.velocity.x) + abs(self.player.velocity.y)
         if speed > 2:
@@ -498,10 +589,13 @@ class Game:
             self.player.on_ground = False
 
         # Hazards and enemies
+        laser_hit = any(laser.active and laser.rect.colliderect(self.player.rect) for laser in level.lasers)
         hurtful = (
             pygame.sprite.spritecollideany(self.player, level.spikes)
             or pygame.sprite.spritecollideany(self.player, level.enemies)
-            or pygame.sprite.spritecollideany(self.player, self.boss_projectiles)
+            or pygame.sprite.spritecollideany(self.player, level.hover_enemies)
+            or pygame.sprite.spritecollideany(self.player, self.hazard_projectiles)
+            or laser_hit
         )
         if hurtful:
             self.reset_level_state()
@@ -509,7 +603,7 @@ class Game:
 
         # Boss logic
         if level.boss:
-            level.boss.update(level.tiles, self.player, self.boss_projectiles)
+            level.boss.update(collision_tiles, self.player, self.hazard_projectiles)
             if pygame.sprite.collide_rect(self.player, level.boss):
                 self.reset_level_state()
                 return
@@ -526,6 +620,7 @@ class Game:
 
         # Player shots damage enemies
         pygame.sprite.groupcollide(self.player_projectiles, level.enemies, True, True)
+        pygame.sprite.groupcollide(self.player_projectiles, level.hover_enemies, True, True)
 
         # Goal (inactive while boss lives)
         if level.boss and level.boss.health > 0:
@@ -558,10 +653,13 @@ class Game:
     def draw_level(self, level):
         level.tiles.draw(self.screen)
         level.spikes.draw(self.screen)
+        level.moving_platforms.draw(self.screen)
         level.collectibles.draw(self.screen)
         level.goal.draw(self.screen)
         level.enemies.draw(self.screen)
+        level.hover_enemies.draw(self.screen)
         level.boosters.draw(self.screen)
+        level.lasers.draw(self.screen)
         for particle in self.trail:
             alpha = max(40, particle["life"] * 7)
             radius = max(4, particle["life"] // 2)
@@ -571,7 +669,7 @@ class Game:
             pos = (particle["pos"][0] - radius, particle["pos"][1] - radius)
             self.screen.blit(glow, pos)
         self.player_projectiles.draw(self.screen)
-        self.boss_projectiles.draw(self.screen)
+        self.hazard_projectiles.draw(self.screen)
         if level.boss:
             self.screen.blit(level.boss.image, level.boss.rect)
         self.screen.blit(self.player.image, self.player.rect)
