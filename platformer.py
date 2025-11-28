@@ -914,6 +914,11 @@ class Game:
         self.player_projectiles.update()
         self.hazard_projectiles.update()
 
+        # Finale sequencing runs every frame once the boss is beaten, even if the
+        # player takes damage, so the post-fight celebration can't stall.
+        if self.boss_defeated:
+            self.handle_finale_sequence(level)
+
         speed = abs(self.player.velocity.x) + abs(self.player.velocity.y)
         if speed > 2:
             self.trail.append({"pos": self.player.rect.center, "life": 18})
@@ -950,6 +955,10 @@ class Game:
             or pygame.sprite.spritecollideany(self.player, self.hazard_projectiles)
             or laser_hit
         )
+        if self.boss_defeated and not self.wave_spawned:
+            # Keep the player safe during the celebration so the finale timers
+            # reliably reach the encore phase.
+            hurtful = False
         if self.god_mode:
             hurtful = False
         if hurtful:
@@ -978,9 +987,6 @@ class Game:
                 else:
                     self.advance_level()
                 return
-
-        if self.boss_defeated:
-            self.handle_finale_sequence(level)
 
         # Player shots damage enemies
         pygame.sprite.groupcollide(self.player_projectiles, level.enemies, True, True)
