@@ -359,13 +359,22 @@ class GroundShooter(pygame.sprite.Sprite):
                 self.shoot_cooldown = 120
 
 class Projectile(pygame.sprite.Sprite):
-    def __init__(self, pos, direction, color=(230, 60, 60), speed=PROJECTILE_SPEED, radius=10):
+    def __init__(
+        self,
+        pos,
+        direction,
+        color=(230, 60, 60),
+        speed=PROJECTILE_SPEED,
+        radius=10,
+        damage=1,
+    ):
         super().__init__()
         self.image = Surface((radius * 2, radius * 2), pygame.SRCALPHA)
         pygame.draw.circle(self.image, color, (radius, radius), radius)
         pygame.draw.circle(self.image, (255, 240, 240), (radius, radius), radius // 2)
         self.rect = self.image.get_rect(center=pos)
         self.velocity = Vector2(direction).normalize() * speed if direction.length() != 0 else Vector2(speed, 0)
+        self.damage = damage
 
     def update(self):
         self.rect.centerx += int(self.velocity.x)
@@ -487,8 +496,8 @@ class Boss(pygame.sprite.Sprite):
 
         self.move_and_collide(tiles)
 
-    def take_hit(self):
-        self.health -= 1
+    def take_hit(self, amount=1):
+        self.health -= amount
         pygame.draw.rect(self.image, (255, 255, 255), self.image.get_rect(), 2, border_radius=14)
 
 class Player(pygame.sprite.Sprite):
@@ -516,6 +525,7 @@ class Player(pygame.sprite.Sprite):
         self.invuln_timer = 0
         self.god_mode = god_mode
         self.auto_walk_right = False
+        self.op_projectiles = False
 
     def handle_input(self):
         keys = pygame.key.get_pressed()
@@ -540,7 +550,9 @@ class Player(pygame.sprite.Sprite):
         )
         if keys[pygame.K_e] and self.shoot_cooldown <= 0:
             self.shoot_cooldown = 18
-            return Projectile(self.rect.center, Vector2(self.facing, 0), color=(230, 60, 60))
+            damage = 19 if self.op_projectiles else 1
+            color = (255, 80, 220) if self.op_projectiles else (230, 60, 60)
+            return Projectile(self.rect.center, Vector2(self.facing, 0), color=color, damage=damage)
         return None
 
     def apply_gravity(self):
@@ -695,6 +707,7 @@ class Game:
         self.levels = [Level(layout) for layout in load_levels()]
         self.level_index = 0
         self.god_mode = False
+        self.op_projectiles = False
         self.player = Player(self.levels[self.level_index].player_start, god_mode=self.god_mode)
         self.player_projectiles = pygame.sprite.Group()
         self.hazard_projectiles = pygame.sprite.Group()
@@ -703,6 +716,7 @@ class Game:
         self.state = "menu"
         self.selected_level = 0
         self.transitioning = False
+        self.finale_start_time = None
         self.stars = [
             {
                 "pos": Vector2(random.randint(0, WIDTH), random.randint(0, HEIGHT)),
@@ -765,6 +779,7 @@ class Game:
         self.player.velocity = Vector2(0, 0)
         self.player.collected = 0
         self.player.god_mode = self.god_mode
+        self.player.op_projectiles = self.op_projectiles
         self.player.health_bars = self.player.max_health_bars
         self.player.damage_buffer = 0
         self.player.shield_time = 0
@@ -778,6 +793,7 @@ class Game:
         self.wave_enemies.empty()
         self.boss_defeated = False
         self.boss_exit_timer = 0
+        self.finale_start_time = None
         self.fire_mode = False
         self.player_dancing = False
         self.celebration_timer = 0
@@ -847,6 +863,7 @@ class Game:
     def trigger_finale(self, level):
         self.boss_defeated = True
         self.boss_exit_timer = 0
+        self.finale_start_time = pygame.time.get_ticks()
         self.allow_exit = False
         if level.boss:
             level.boss.start_death()
@@ -878,17 +895,25 @@ class Game:
             self.wave_enemies.add(GroundShooter((x, base_y)))
 
     def handle_finale_sequence(self, level):
-        self.boss_exit_timer += 1
-        if self.boss_exit_timer == 90:
+        now = pygame.time.get_ticks()
+        if self.finale_start_time is None:
+            self.finale_start_time = now
+        elapsed = now - self.finale_start_time
+
+        if elapsed >= 500 and level.boss and not level.boss.dying:
+            level.boss.start_death()
+
+        if elapsed >= 1500:
             if level.boss:
                 level.boss.kill()
                 level.boss = None
             self.fire_mode = True
-        if self.boss_exit_timer >= 90:
-            self.player_dancing = self.celebration_timer < 3600 and not self.wave_spawned
+
+        if elapsed >= 1500:
+            self.player_dancing = elapsed < 61500 and not self.wave_spawned
             self.start_celebration_music()
-            self.celebration_timer += 1
-            if self.celebration_timer >= 3600 and not self.wave_spawned:
+            self.celebration_timer = elapsed
+            if elapsed >= 60000 and not self.wave_spawned:
                 self.wave_spawned = True
                 self.player_dancing = False
                 self.stop_music()
@@ -979,7 +1004,8 @@ class Game:
                 return
             boss_hits = pygame.sprite.spritecollide(level.boss, self.player_projectiles, dokill=True)
             if boss_hits:
-                level.boss.take_hit()
+                total_damage = sum(getattr(hit, "damage", 1) for hit in boss_hits)
+                level.boss.take_hit(total_damage)
                 self.play_sound(self.enemy_shoot_sound)
             if level.boss.health <= 0:
                 if self.level_index == len(self.levels) - 1:
@@ -987,6 +1013,10 @@ class Game:
                 else:
                     self.advance_level()
                 return
+        elif self.level_index == len(self.levels) - 1 and not self.boss_defeated:
+            # If the boss despawns unexpectedly, still start the finale so the
+            # sequence always runs on the last level.
+            self.trigger_finale(level)
 
         # Player shots damage enemies
         pygame.sprite.groupcollide(self.player_projectiles, level.enemies, True, True)
@@ -1208,6 +1238,9 @@ class Game:
                 if event.key == pygame.K_1:
                     self.god_mode = not self.god_mode
                     self.player.god_mode = self.god_mode
+                elif event.key == pygame.K_2:
+                    self.op_projectiles = not self.op_projectiles
+                    self.player.op_projectiles = self.op_projectiles
                 elif event.key in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
                     self.state = "menu"
                 elif event.key in (pygame.K_RETURN, pygame.K_SPACE):
@@ -1219,11 +1252,15 @@ class Game:
         god_status = "ON" if self.god_mode else "OFF"
         god_color = (170, 255, 170) if self.god_mode else (255, 180, 180)
         option = self.font.render(f"1) God Mode: {god_status}", True, god_color)
+        op_status = "ON" if self.op_projectiles else "OFF"
+        op_color = (170, 255, 220) if self.op_projectiles else (255, 200, 200)
+        option2 = self.font.render(f"2) OP Projectiles: {op_status}", True, op_color)
         close = self.font.render("ENTER/ESC to return", True, (210, 220, 240))
         self.screen.blit(title, title.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
         self.screen.blit(hint, hint.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 40)))
         self.screen.blit(option, option.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 90)))
-        self.screen.blit(close, close.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 140)))
+        self.screen.blit(option2, option2.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 130)))
+        self.screen.blit(close, close.get_rect(center=(WIDTH // 2, HEIGHT // 3 + 180)))
 
     def handle_level_select_events(self):
         for event in pygame.event.get():
