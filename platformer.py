@@ -717,6 +717,7 @@ class Game:
         self.selected_level = 0
         self.transitioning = False
         self.finale_start_time = None
+        self.finale_music_stopped = False
         self.stars = [
             {
                 "pos": Vector2(random.randint(0, WIDTH), random.randint(0, HEIGHT)),
@@ -801,6 +802,7 @@ class Game:
         self.epilogue_ready = False
         self.allow_exit = self.level_index < len(self.levels) - 1
         self.celebration_music_started = False
+        self.finale_music_stopped = False
         # Deep copy collectibles to allow replaying levels
         layout_copy = load_levels()[self.level_index]
         self.levels[self.level_index] = Level(layout_copy)
@@ -864,7 +866,9 @@ class Game:
         self.boss_defeated = True
         self.boss_exit_timer = 0
         self.finale_start_time = pygame.time.get_ticks()
+        self.finale_music_stopped = False
         self.allow_exit = False
+        self.fire_mode = True
         if level.boss:
             level.boss.start_death()
         self.hazard_projectiles.empty()
@@ -900,6 +904,8 @@ class Game:
             self.finale_start_time = now
         elapsed = now - self.finale_start_time
 
+        self.fire_mode = True
+
         if elapsed >= 500 and level.boss and not level.boss.dying:
             level.boss.start_death()
 
@@ -907,16 +913,18 @@ class Game:
             if level.boss:
                 level.boss.kill()
                 level.boss = None
-            self.fire_mode = True
 
-        if elapsed >= 1500:
-            self.player_dancing = elapsed < 61500 and not self.wave_spawned
+        dance_duration = 60000
+        if not self.wave_spawned:
+            self.player_dancing = elapsed < (dance_duration + 1500)
             self.start_celebration_music()
-            self.celebration_timer = elapsed
-            if elapsed >= 60000 and not self.wave_spawned:
+            self.celebration_timer = min(elapsed, dance_duration)
+            if elapsed >= dance_duration and not self.finale_music_stopped:
+                self.stop_music()
+                self.finale_music_stopped = True
+            if elapsed >= dance_duration and not self.wave_spawned:
                 self.wave_spawned = True
                 self.player_dancing = False
-                self.stop_music()
                 self.spawn_wave_enemies(level)
 
         if self.wave_spawned and not self.epilogue_ready and len(self.wave_enemies) == 0:
