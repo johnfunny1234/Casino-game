@@ -727,6 +727,10 @@ class Game:
             }
             for _ in range(80)
         ]
+        self.embers = self.build_embers()
+        self.nebulae = self.build_nebulae()
+        self.finale_fx = []
+        self.last_finale_fx = 0
         self.boss_music_path = self.find_boss_music()
         self.celebration_music_path = self.find_celebration_music()
         self.reset_level_state()
@@ -766,13 +770,46 @@ class Game:
 
     def find_celebration_music(self):
         base = Path(__file__).parent
-        preferred = base / "What we Do Here is Go Back - Otis McDonald.mp3"
-        if preferred.exists():
-            return str(preferred)
+        preferred_files = [
+            base / "Goback.mp3",
+            base / "Go back.mp3",
+            base / "What we Do Here is Go Back - Otis McDonald.mp3",
+        ]
+        for preferred in preferred_files:
+            if preferred.exists():
+                return str(preferred)
         for ext in (".ogg", ".mp3", ".wav"):
-            for candidate in base.glob(f"*celebration*{ext}"):
+            for candidate in base.glob(f"*go back*{ext}"):
+                return str(candidate)
+            for candidate in base.glob(f"*celebrat*{ext}"):
                 return str(candidate)
         return None
+
+    def build_embers(self, count=90):
+        embers = []
+        for _ in range(count):
+            embers.append(
+                {
+                    "pos": Vector2(random.uniform(0, WIDTH), random.uniform(HEIGHT * 0.4, HEIGHT)),
+                    "vel": Vector2(random.uniform(-0.25, 0.25), random.uniform(-0.8, -0.3)),
+                    "size": random.randint(3, 9),
+                    "alpha": random.randint(120, 210),
+                }
+            )
+        return embers
+
+    def build_nebulae(self, count=6):
+        blobs = []
+        for i in range(count):
+            blobs.append(
+                {
+                    "pos": Vector2(random.randint(0, WIDTH), random.randint(40, HEIGHT // 2)),
+                    "radius": random.randint(120, 210),
+                    "color": random.choice([(90, 120, 200), (140, 180, 255), (120, 90, 200)]),
+                    "offset": random.uniform(0.8, 1.6),
+                }
+            )
+        return blobs
 
     def reset_level_state(self):
         level = self.levels[self.level_index]
@@ -803,6 +840,9 @@ class Game:
         self.allow_exit = self.level_index < len(self.levels) - 1
         self.celebration_music_started = False
         self.finale_music_stopped = False
+        self.embers = self.build_embers()
+        self.finale_fx = []
+        self.last_finale_fx = 0
         # Deep copy collectibles to allow replaying levels
         layout_copy = load_levels()[self.level_index]
         self.levels[self.level_index] = Level(layout_copy)
@@ -821,16 +861,46 @@ class Game:
 
     def draw_background(self):
         if self.fire_mode:
-            draw_gradient_rect(self.screen, (90, 20, 10), (180, 60, 20), Rect(0, 0, WIDTH, HEIGHT))
-            for _ in range(10):
+            draw_gradient_rect(self.screen, (70, 16, 10), (200, 70, 30), Rect(0, 0, WIDTH, HEIGHT))
+            base_glow = Surface((WIDTH, HEIGHT // 2), pygame.SRCALPHA)
+            draw_gradient_rect(base_glow, (220, 100, 50), (120, 40, 20), Rect(0, 0, WIDTH, HEIGHT // 2))
+            base_glow.set_alpha(150)
+            self.screen.blit(base_glow, (0, HEIGHT // 2))
+            for ember in self.embers:
+                ember["pos"] += ember["vel"]
+                if ember["pos"].y < -20:
+                    ember["pos"].y = HEIGHT + random.randint(0, 60)
+                    ember["pos"].x = random.uniform(0, WIDTH)
+                ember["pos"].x %= WIDTH
+                ember["alpha"] = max(80, min(220, ember["alpha"] + random.randint(-8, 8)))
+                size = ember["size"]
+                glow = Surface((size * 3, size * 3), pygame.SRCALPHA)
+                center = (int(size * 1.5), int(size * 1.5))
+                pygame.draw.circle(glow, (255, 200, 140, ember["alpha"]), center, size)
+                pygame.draw.circle(glow, (255, 120, 90, ember["alpha"] // 2), center, max(1, size // 2))
+                self.screen.blit(glow, (ember["pos"].x - size * 1.5, ember["pos"].y - size * 1.5))
+            for _ in range(6):
                 flicker_x = random.randint(0, WIDTH)
                 flicker_y = random.randint(0, HEIGHT // 2)
-                size = random.randint(40, 120)
+                size = random.randint(80, 180)
                 flame = Surface((size, size), pygame.SRCALPHA)
-                pygame.draw.circle(flame, (255, 140, 60, 80), (size // 2, size // 2), size // 2)
-                self.screen.blit(flame, (flicker_x, flicker_y))
+                pygame.draw.circle(flame, (255, 160, 90, 90), (size // 2, size // 2), size // 2)
+                self.screen.blit(flame, (flicker_x - size // 3, flicker_y))
+            for fx in self.finale_fx:
+                radius = fx.get("radius", 24)
+                surf = Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+                color = fx.get("color", (255, 200, 140, 160))
+                pygame.draw.circle(surf, color, (radius, radius), radius)
+                pygame.draw.circle(surf, (255, 255, 255, 120), (radius, radius), max(8, radius // 2), 2)
+                self.screen.blit(surf, (fx["pos"].x - radius, fx["pos"].y - radius))
         else:
             draw_gradient_rect(self.screen, (15, 18, 45), (35, 45, 80), Rect(0, 0, WIDTH, HEIGHT))
+            for blob in self.nebulae:
+                wobble = math.sin(pygame.time.get_ticks() / 1000 * blob["offset"]) * 14
+                surf = Surface((blob["radius"] * 2, blob["radius"] * 2), pygame.SRCALPHA)
+                pygame.draw.circle(surf, (*blob["color"], 42), (blob["radius"], blob["radius"]), blob["radius"])
+                pygame.draw.circle(surf, (*blob["color"], 90), (blob["radius"], blob["radius"]), blob["radius"] // 2)
+                self.screen.blit(surf, (blob["pos"].x - blob["radius"] + wobble, blob["pos"].y - blob["radius"] * 0.6))
             for star in self.stars:
                 star["pos"].x -= star["speed"]
                 if star["pos"].x < 0:
@@ -891,6 +961,25 @@ class Game:
             except pygame.error:
                 pass
 
+    def update_finale_fx(self, elapsed):
+        if self.fire_mode and elapsed - self.last_finale_fx > 420:
+            self.last_finale_fx = elapsed
+            bursts = random.randint(2, 4)
+            for _ in range(bursts):
+                self.finale_fx.append(
+                    {
+                        "pos": Vector2(random.randint(0, WIDTH), random.randint(HEIGHT // 3, HEIGHT - 80)),
+                        "vel": Vector2(random.uniform(-0.3, 0.3), random.uniform(-0.6, -0.2)),
+                        "radius": random.randint(18, 34),
+                        "life": random.randint(40, 80),
+                        "color": (255, random.randint(170, 230), random.randint(120, 180), random.randint(120, 180)),
+                    }
+                )
+        for fx in self.finale_fx:
+            fx["pos"] += fx.get("vel", Vector2(0, -0.3))
+            fx["life"] -= 1
+        self.finale_fx = [fx for fx in self.finale_fx if fx["life"] > 0]
+
     def spawn_wave_enemies(self, level):
         floor_top = min(tile.rect.top for tile in level.tiles) if level.tiles else HEIGHT - TILE * 2
         base_y = floor_top - int(TILE * 0.9)
@@ -905,6 +994,7 @@ class Game:
         elapsed = now - self.finale_start_time
 
         self.fire_mode = True
+        self.update_finale_fx(elapsed)
 
         if elapsed >= 500 and level.boss and not level.boss.dying:
             level.boss.start_death()
