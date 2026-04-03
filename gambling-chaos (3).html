@@ -7658,6 +7658,13 @@ function startCh5(){
     locked=document.pointerLockElement===document.body;
     $('xh').style.display=locked?'block':'none';
   });
+
+  document.addEventListener('click',()=>{
+    if(!locked){
+      document.body.requestPointerLock();
+      return;
+    }
+  });
   ch5Phase='CH5_PRISON_WAKE';
   // Build the prison cell
   buildCh5Prison();
