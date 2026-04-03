@@ -7633,6 +7633,31 @@ function startCh5(){
   ch5VentEnemyTalk=false;
   $('money').textContent='AK-47: 60';
   document.body.requestPointerLock();
+  // FIX INPUT BUG (movement + E key)
+  document.addEventListener('keydown',e=>{
+    keys[e.key.toLowerCase()]=true;
+
+    // allow E interactions in chapter 5
+    if(ch5&&e.key.toLowerCase()==='e'){
+      ch2Interact(); // reuse existing interact system
+    }
+  });
+
+  document.addEventListener('keyup',e=>{
+    keys[e.key.toLowerCase()]=false;
+  });
+
+  document.addEventListener('mousemove',e=>{
+    if(!locked)return;
+    yaw-=e.movementX*.002;
+    pitch+=e.movementY*.002;
+    pitch=Math.max(-1.4,Math.min(1.4,pitch));
+  });
+
+  document.addEventListener('pointerlockchange',()=>{
+    locked=document.pointerLockElement===document.body;
+    $('xh').style.display=locked?'block':'none';
+  });
   ch5Phase='CH5_PRISON_WAKE';
   // Build the prison cell
   buildCh5Prison();
