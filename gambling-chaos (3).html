@@ -7633,6 +7633,31 @@ function startCh5(){
   ch5VentEnemyTalk=false;
   $('money').textContent='AK-47: 60';
   document.body.requestPointerLock();
+  // FIX INPUT BUG (movement + E key)
+  document.addEventListener('keydown',e=>{
+    keys[e.key.toLowerCase()]=true;
+
+    // allow E interactions in chapter 5
+    if(ch5&&e.key.toLowerCase()==='e'){
+      ch2Interact(); // reuse existing interact system
+    }
+  });
+
+  document.addEventListener('keyup',e=>{
+    keys[e.key.toLowerCase()]=false;
+  });
+
+  document.addEventListener('mousemove',e=>{
+    if(!locked)return;
+    yaw-=e.movementX*.002;
+    pitch+=e.movementY*.002;
+    pitch=Math.max(-1.4,Math.min(1.4,pitch));
+  });
+
+  document.addEventListener('pointerlockchange',()=>{
+    locked=document.pointerLockElement===document.body;
+    $('xh').style.display=locked?'block':'none';
+  });
   ch5Phase='CH5_PRISON_WAKE';
   // Build the prison cell
   buildCh5Prison();
@@ -8483,7 +8508,9 @@ function buildCh5Vent(){
   ch2B(2,.1,30,ventM,0,-.05,-12);
   ch2B(2,.1,30,ventM,0,2.05,-12,true);// ceiling
   ch2B(.1,2,30,ventM,-1,1,-12);ch2Cols.push({x1:-1.2,z1:-27,x2:-.8,z2:3});
-  ch2B(.1,2,30,ventM,1,1,-12);ch2Cols.push({x1:.8,z1:-27,x2:1.2,z2:3});
+  // Right wall has a cutout near the corner so the player can turn into the side shaft.
+  ch2B(.1,2,22,ventM,1,1,-8);ch2Cols.push({x1:.8,z1:-19,x2:1.2,z2:3});
+  ch2B(.1,2,2,ventM,1,1,-26);ch2Cols.push({x1:.8,z1:-27,x2:1.2,z2:-25});
 
   // Dim lights along vent
   for(let z=0;z>-25;z-=8){
