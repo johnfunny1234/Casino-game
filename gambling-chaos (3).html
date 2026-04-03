@@ -8483,7 +8483,9 @@ function buildCh5Vent(){
   ch2B(2,.1,30,ventM,0,-.05,-12);
   ch2B(2,.1,30,ventM,0,2.05,-12,true);// ceiling
   ch2B(.1,2,30,ventM,-1,1,-12);ch2Cols.push({x1:-1.2,z1:-27,x2:-.8,z2:3});
-  ch2B(.1,2,30,ventM,1,1,-12);ch2Cols.push({x1:.8,z1:-27,x2:1.2,z2:3});
+  // Right wall has a cutout near the corner so the player can turn into the side shaft.
+  ch2B(.1,2,22,ventM,1,1,-8);ch2Cols.push({x1:.8,z1:-19,x2:1.2,z2:3});
+  ch2B(.1,2,2,ventM,1,1,-26);ch2Cols.push({x1:.8,z1:-27,x2:1.2,z2:-25});
 
   // Dim lights along vent
   for(let z=0;z>-25;z-=8){
