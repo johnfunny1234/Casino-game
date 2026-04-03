@@ -8226,11 +8226,17 @@ function ch5ShipJumpScene(){
             {speaker:'SYSTEM',text:"*The ship crashes into the forest, carving a path of destruction.*"},
             {speaker:'SYSTEM',text:"*Then... silence. Smoke rises. The forest smolders.*"},
             {speaker:'SYSTEM',text:"*Carl lands hard in the trees. Marcus beside him. Both alive. Barely.*"}
-          ],()=>{
+          ]);
+
+          // Force-load aftermath even if dialogue callback chain gets interrupted.
+          setTimeout(()=>{
             ch5Phase='CH5_AFTERMATH';
-            // Build aftermath area
-            setTimeout(()=>{buildCh5Aftermath();blackout(false);},1500);
-          });
+            buildCh5Aftermath();
+            blackout(false);
+          },4000);
+
+          // Extra safety: never stay black forever.
+          setTimeout(()=>blackout(false),6000);
         },2500);
       },3000);
     },2000);
