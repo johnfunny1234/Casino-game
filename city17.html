@@ -2437,6 +2437,46 @@ class Chapter1_Arrival extends BaseChapter {
     frame.position.set(0, 1.15, 4.05);
     this.scene.add(frame); this.addObj(frame);
 
+    // Black box transition tunnel right outside the train door.
+    // Player must walk through this area to leave the train chapter cleanly.
+    const boxLength = 4;
+    const boxCenterZ = 6;
+    const boxWidth = 2.6;
+    const boxHeight = 2.6;
+
+    const boxFloor = new THREE.Mesh(
+      new THREE.BoxGeometry(boxWidth, 0.2, boxLength),
+      stdMat(0x050505, { roughness: 1 })
+    );
+    boxFloor.position.set(0, -0.1, boxCenterZ);
+    this.scene.add(boxFloor); this.addObj(boxFloor);
+    this.colliders.push({
+      min: new THREE.Vector3(-boxWidth / 2, -0.2, boxCenterZ - boxLength / 2),
+      max: new THREE.Vector3(boxWidth / 2, 0, boxCenterZ + boxLength / 2),
+      isFloor: true
+    });
+
+    // Tunnel shell (visual only)
+    const boxCeil = new THREE.Mesh(
+      new THREE.BoxGeometry(boxWidth, 0.2, boxLength),
+      stdMat(0x070707, { roughness: 1 })
+    );
+    boxCeil.position.set(0, boxHeight - 0.1, boxCenterZ);
+    this.scene.add(boxCeil); this.addObj(boxCeil);
+
+    for (let side = -1; side <= 1; side += 2) {
+      const boxWall = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, boxHeight, boxLength),
+        stdMat(0x060606, { roughness: 1 })
+      );
+      boxWall.position.set(side * boxWidth / 2, boxHeight / 2, boxCenterZ);
+      this.scene.add(boxWall); this.addObj(boxWall);
+      this.colliders.push({
+        min: new THREE.Vector3(side * boxWidth / 2 - 0.1, 0, boxCenterZ - boxLength / 2),
+        max: new THREE.Vector3(side * boxWidth / 2 + 0.1, boxHeight, boxCenterZ + boxLength / 2)
+      });
+    }
+
     // Back wall (past the seats)
     const back = new THREE.Mesh(
       new THREE.BoxGeometry(trainWidth, trainHeight, 0.15),
@@ -2529,7 +2569,7 @@ class Chapter1_Arrival extends BaseChapter {
       this.audio.playDoorHiss();
       this._doorsOpen = true;
       this.player.unfreeze();
-      this.ui.showObjective('LEAVE THE TRAIN');
+      this.ui.showObjective('WALK OUT THE BLACK BOX');
       this.ui.showCrosshair(true);
       // Stop train ambient, start station
       this.audio.stopAmbient();
@@ -2538,8 +2578,8 @@ class Chapter1_Arrival extends BaseChapter {
 
     // Trigger to leave train
     this.triggers.push({
-      pos: new THREE.Vector3(0, 0, 5),
-      radius: 1.5,
+      pos: new THREE.Vector3(0, 0, 7.2),
+      radius: 0.9,
       onEnter: () => this.enterStation()
     });
     this.applyTriggers();
