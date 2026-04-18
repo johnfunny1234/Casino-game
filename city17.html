@@ -2597,6 +2597,12 @@ class Chapter1_Arrival extends BaseChapter {
     this.cleanupTrain();
     this.buildStation();
 
+    // Ensure player is spawned inside the station nav space (not behind the back wall)
+    // and facing toward the concourse so movement works immediately.
+    this.player.setPosition(0, SETTINGS.eyeHeight, 3);
+    this.player.setRotation(0, 0);
+    this.player.unfreeze();
+
     // Breen screen dialogue
     this.setTimer(() => this.breenSpeech(), 4000);
   }
