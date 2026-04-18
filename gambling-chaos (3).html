@@ -1626,6 +1626,7 @@ let ch3p2TalkedAll=0,ch3p2TalkedMax=5,ch3p2AteFood=false;
 let ch3p2BoomDone=false,ch3p2ShipTalked=false,ch3p2RocketFired=false;
 let ch3p2SniperTalked=false,ch3p2CMSpotted=false,ch3p2ColeOut=false;
 let ch3p2Helis=[];
+let ch3p2CrashExitBox=null,ch3p2CrashExitTriggered=false;
 // ── CHAPTER 4 STATE ──
 let ch4=false,ch4Phase='';
 let ch4Marcus=null,ch4Slasher=null,ch4CM=null,ch4Cole=null,ch4AJ=null;
@@ -3870,6 +3871,15 @@ function ch2Loop(){
   ch2P.vy-=16*dt;ch2P.y+=ch2P.vy*dt;if(ch2P.y<=0){ch2P.y=0;ch2P.vy=0;ch2P.gnd=true;}
   const nx=ch2P.x+mx,nz=ch2P.z+mz;
   if(!ch2Col(nx,ch2P.z))ch2P.x=nx;if(!ch2Col(ch2P.x,nz))ch2P.z=nz;
+  if(ch3p2Phase==='TUNNEL_CRASH'&&!ch3p2CrashExitTriggered){
+    const insideCrashExit=Math.abs(ch2P.x)<=1.8&&ch2P.z<=-30.8&&ch2P.z>=-33.5;
+    if(insideCrashExit){
+      ch3p2CrashExitTriggered=true;
+      showSub('MOVING ON','You made it out of the train wreck.',2500);
+      blackout(true);
+      setTimeout(()=>{buildCh3P2Tunnel();blackout(false);},1200);
+    }
+  }
   if((keys['w']||keys['s']||keys['a']||keys['d'])&&ch2P.gnd)stepSound(dt);
   ch2Cam.position.set(ch2P.x,ch2P.y+1.6,ch2P.z);
   if((keys['w']||keys['s']||keys['a']||keys['d'])&&ch2P.gnd)ch2Cam.position.y+=Math.sin(Date.now()*.009)*.03;
@@ -4792,11 +4802,12 @@ function ch3TrainDerail(){
   setTimeout(()=>{sfxExplosion();flash('#ffffff',500);},1000);
   setTimeout(()=>{sfxCollapse();spawnDebris(ch2P.x,5,ch2P.z,15);},1500);
   setTimeout(()=>{clearInterval(shakeInt);if(ch2Cam)ch2Cam.rotation.z=0;blackout(true);
-    setTimeout(()=>{won=true;ch3Cinematic=false;
-      $('end').style.display='flex';
-      $('end').querySelector('h1').textContent='CHAPTER 3 COMPLETE';
-      $('end').querySelector('p').innerHTML='<span style="color:#aaa;font-size:15px">The emergency train hit debris at full speed.<br><br>The derailment sent the car skidding through the tunnel,<br>sparks flying, metal screaming against concrete.<br><br>Carl was thrown from his seat. Everything went black.<br><br>When he woke, emergency lights flickered above him.<br>Other passengers groaned in the wreckage.<br>But they were alive. They had made it far enough.<br><br>Behind them, the Tower of Fortune\'s core went dark,<br>its golden light extinguishing like a candle in a storm.<br>The Casino Master would not return.<br><br>Above ground, the city smoldered.<br>Emergency crews flooded the streets.<br>The Card Slasher, one-armed and bleeding,<br>led survivors to safety with the last of his strength.<br><br>Marcus was airlifted from the rubble.<br>Cole and AJ were never found.<br><br>Carl sat in the wreckage of the train,<br>staring at the flickering lights above him.<br><br>It was over. All of it.<br><br>Or was it?<br><br>In the deepest part of the collapsed tower,<br>beneath tons of steel and concrete,<br>a single golden light pulsed.<br>Once. Twice. Then silence.<br><br></span><span style="color:#ff4400;font-family:Bebas Neue;font-size:28px;letter-spacing:6px">TO BE CONTINUED...</span>';
-      $('hud').style.display='none';blackout(false);
+    setTimeout(()=>{
+      ch3Cinematic=false;
+      unlockCh3P2();
+      blackout(false);
+      startCh3P2();
+      showSub('ESCAPE THE WRECK','Walk through the black box to continue.',4500);
     },2000);
   },3500);
 }
@@ -4910,6 +4921,8 @@ function startCh3P2(){
   ch3p2StreetsBuilt=false;ch3p2StationBuilt=false;
   ch3p2TunnelBuilt=false;ch3p2BridgeBuilt=false;
   ch3p2TrainMoving=false;ch3p2TrainSpeed=0;
+  ch3p2CrashExitTriggered=false;
+  ch3p2CrashExitBox=null;
   ch2Scene=new THREE.Scene();
   ch2Scene.fog=new THREE.Fog(0x111111,15,80);
   ch2Scene.background=new THREE.Color(0x222211);
@@ -4995,7 +5008,13 @@ function buildCh3P2CrashSite(){
   const daylight=new THREE.Mesh(new THREE.BoxGeometry(10,5,.1),new THREE.MeshBasicMaterial({color:0xffcc88,transparent:true,opacity:.15}));
   daylight.position.set(0,2.5,-33);ch2Scene.add(daylight);
   ch2ZL(0xffcc88,.3,0,2.5,-33,10);
-  ch2Npcs.push({mesh:null,x:0,z:-30,radius:4,id:'ch3p2_exit_tunnel',name:'Tunnel Exit'});
+  ch3p2CrashExitBox=new THREE.Mesh(
+    new THREE.BoxGeometry(4,4,.4),
+    new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.92})
+  );
+  ch3p2CrashExitBox.position.set(0,2,-31.8);
+  ch2Scene.add(ch3p2CrashExitBox);
+  showSub('FIND THE EXIT','Walk through the black box to reach the next chapter area.',4000);
 }
 
 // ═════════════════════════════════════
