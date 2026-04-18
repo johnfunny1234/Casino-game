@@ -2579,8 +2579,9 @@ class Chapter1_Arrival extends BaseChapter {
 
     // Trigger to leave train
     this.triggers.push({
-      pos: new THREE.Vector3(0, 0, 7.2),
-      radius: 0.9,
+      // Wider trigger so exiting along either side of the tunnel still transitions.
+      pos: new THREE.Vector3(0, 0, 6.9),
+      radius: 1.8,
       onEnter: () => this.enterStation()
     });
     this.applyTriggers();
@@ -3044,6 +3045,10 @@ class Chapter1_Arrival extends BaseChapter {
       // Gentle train sway (player camera)
       const sway = Math.sin(this.time * 1.2) * 0.015;
       this.player.camera.rotation.z = sway;
+    } else if (this.phase === 'arriving') {
+      // Fallback transition: if the player physically walks out through the black box,
+      // force progression even if the trigger edge is missed.
+      if (this.player.position.z > 6.1) this.enterStation();
     } else if (this.phase === 'plaza' || this.phase === 'exiting') {
       // Animate papers blowing
       this.objects.forEach(o => {
