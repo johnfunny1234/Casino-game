@@ -1761,7 +1761,8 @@ class Player {
 
     // Check triggers
     for (const trig of this.triggers) {
-      if (!trig.active) continue;
+      // Triggers are active by default unless explicitly disabled.
+      if (trig.active === false) continue;
       const dx = this.position.x - trig.pos.x;
       const dz = this.position.z - trig.pos.z;
       if (dx * dx + dz * dz < trig.radius * trig.radius) {
